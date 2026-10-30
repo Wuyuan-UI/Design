@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+<head>
+    <meta charset="UTF-8">
+    <title>万圣节｜调整参数</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; font-family:"Microsoft Yahei", sans-serif; }
+        body {
+            min-height:100vh;
+            background:#fff;
+            padding:40px 20px calc(140px + env(safe-area-inset-bottom));
+            text-align:center;
+        }
+        h1 { font-size:clamp(1.6rem,5vw,2.4rem); margin-bottom:30px; }
+        .container { max-width:600px; margin:0 auto 40px; text-align:left; }
+        .item { margin-bottom:26px; }
+        .item label { display:block; font-size:1rem; margin-bottom:8px; color:#222; }
+        input[type="range"] { width:100%; }
+        .tip { font-size:0.9rem; color:#666; margin-top:4px; }
+        .warn-tip { font-size:0.85rem; color:#d92d20; margin-top:6px; }
+        select, input[type="color"], input[type="text"] {
+            width:100%; padding:10px; font-size:1rem;
+            border:1px solid #ccc; border-radius:6px;
+        }
+        .text-item { display:flex; gap:8px; margin-bottom:10px; align-items:center; }
+        .text-item input { flex:1; }
+        .text-item button {
+            padding:8px 10px; border:none; border-radius:4px;
+            background:#ef4444; color:#fff;
+        }
+        .add-btn {
+            padding:9px 14px; border:none; border-radius:6px;
+            background:#22c55e; color:#fff; margin:8px 0 16px;
+        }
+        .switch-row {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:10px 0; font-size:1rem; color:#222;
+        }
+        .switch-row input { width:22px; height:22px; }
+        .btn-group {
+            position:fixed; left:20px; right:20px;
+            bottom:calc(20px + env(safe-area-inset-bottom));
+            max-width:900px; margin:0 auto;
+            display:grid; grid-template-columns:1fr 1fr; gap:14px;
+        }
+        .btn-group button {
+            padding:16px; border:none; border-radius:8px;
+            font-size:1.05rem; touch-action:manipulation; cursor:pointer;
+        }
+        .btn-back { background:#64748b; color:#fff; }
+        .btn-go   { background:#f97316; color:#fff; }
+        @media (max-width:400px){
+            .btn-group button { padding:14px; font-size:1rem; }
+        }
+    </style>
+</head>
+<body>
+<h1>万圣节｜调整参数</h1>
+<div class="container">
+
+    <div class="item">
+        <label>名称：</label>
+        <input type="text" id="username" placeholder="例如：小明" value="">
+        <div class="tip">填写则生成：【🎃 小明，祝福语】；留空不生成该前缀</div>
+    </div>
+
+    <div class="item">
+        <label>自定义祝福语（最少5条，填写后替换全部默认祝福语）</label>
+        <div id="textWrap"></div>
+        <button class="add-btn" id="addTextBtn">➕ 增加祝福语</button>
+        <div class="tip">全部留空则使用程序内置默认祝福语</div>
+    </div>
+
+    <div class="item">
+        <label>蝙蝠数量(0为关闭)：<span id="batVal">14</span>只</label>
+        <input type="range" id="bats" min="0" max="40" value="14" step="1">
+        <div class="tip">画面上空飘飞的蝙蝠数量（它们会躲开烛光）</div>
+    </div>
+
+    <div class="item">
+        <label>主题氛围</label>
+        <select id="theme">
+            <option value="night">南瓜夜（暗紫橙）</option>
+            <option value="purple">幽灵紫（幽蓝紫）</option>
+            <option value="blood">血月红（暗红）</option>
+            <option value="zombie">僵尸绿（暗夜绿）</option>
+            <option value="toxic">毒液绿（黄绿）</option>
+            <option value="gold">南瓜金（暗金）</option>
+        </select>
+    </div>
+
+    <div class="item">
+        <label>氛围特效</label>
+        <div class="switch-row">
+            <span>⚡ 随机闪电</span>
+            <input type="checkbox" id="lightning" checked>
+        </div>
+        <div class="switch-row">
+            <span>🌫️ 底部迷雾</span>
+            <input type="checkbox" id="fog" checked>
+        </div>
+    </div>
+
+    <div class="item">
+        <label>背景音乐</label>
+        <select id="music">
+            <option value="off">关闭音乐</option>
+            <option value="2-1.mp3">死寂</option>
+            <option value="2-2.mp3">Halloween</option>
+            <option value="2-3.mp3">Trick or treat!!🎃</option>
+        </select>
+        <div class="tip">下拉选项</div>
+    </div>
+
+    <div class="item">
+        <label>文字颜色</label>
+        <input type="color" id="color" value="#ff9a3c">
+    </div>
+
+</div>
+
+<div class="btn-group">
+    <button class="btn-back" onclick="goBack('page2.html')">返回选项</button>
+    <button class="btn-go" id="goEffect">查看效果</button>
+</div>
+
+<script>
+    /* ============================================================
+       统一后退函数
+       ============================================================ */
+    function goBack(fallback) {
+        var fromSameSite = false;
+        if (document.referrer) {
+            try {
+                fromSameSite = new URL(document.referrer).origin === location.origin;
+            } catch (e) {
+                fromSameSite = document.referrer.indexOf(location.hostname) !== -1 && location.hostname !== '';
+            }
+        }
+        var fromEffectPage = false;
+        if (fromSameSite) {
+            try {
+                var refPath = new URL(document.referrer).pathname;
+                fromEffectPage = /page6\.html$|page7\.html$/.test(refPath);
+            } catch (e) {}
+        }
+        if (fromSameSite && !fromEffectPage && history.length > 1) {
+            history.back();
+        } else {
+            location.href = fallback;
+        }
+    }
+
+    const batsInput     = document.querySelector('#bats');
+    const batVal        = document.querySelector('#batVal');
+    const musicSel      = document.querySelector('#music');
+    const colorInput    = document.querySelector('#color');
+    const themeSel      = document.querySelector('#theme');
+    const lightningChk  = document.querySelector('#lightning');
+    const fogChk        = document.querySelector('#fog');
+    const userNameInput = document.querySelector('#username');
+    const goBtn         = document.querySelector('#goEffect');
+    const addTextBtn    = document.querySelector('#addTextBtn');
+    const textWrap      = document.querySelector('#textWrap');
+    const MIN_COUNT = 5;
+
+    function createTextRow(defVal = ""){
+        const div = document.createElement('div');
+        div.className = "text-item";
+        div.innerHTML = `
+            <input type="text" class="custom-text" placeholder="输入一条万圣节祝福语" value="${defVal}">
+            <button class="del-row">删除</button>
+        `;
+        div.querySelector('.del-row').addEventListener('click', () => {
+            const rows = textWrap.querySelectorAll('.text-item');
+            if (rows.length <= MIN_COUNT) {
+                alert(`最少保留${MIN_COUNT}条祝福语，不能再删`);
+                return;
+            }
+            div.remove();
+        });
+        textWrap.appendChild(div);
+    }
+
+    for (let i = 0; i < MIN_COUNT; i++) createTextRow();
+    addTextBtn.addEventListener('click', () => createTextRow());
+
+    batsInput.addEventListener('input', () => batVal.textContent = batsInput.value);
+
+    function loadSetting(){
+        const raw = sessionStorage.getItem("halloweenSetting");
+        if (!raw) return;
+        try {
+            const s = JSON.parse(raw);
+            batsInput.value     = s.bats ?? 14;
+            musicSel.value      = s.music ?? "off";
+            colorInput.value    = s.color ?? "#ff9a3c";
+            themeSel.value      = s.theme ?? "night";
+            userNameInput.value = s.name ?? "";
+            lightningChk.checked = s.lightning !== false;
+            fogChk.checked       = s.fog !== false;
+
+            batVal.textContent = batsInput.value;
+
+            const arr = Array.isArray(s.customTexts) ? s.customTexts : [];
+            textWrap.querySelectorAll('.text-item').forEach(r => r.remove());
+            if (arr.length > 0) {
+                arr.forEach(txt => createTextRow(txt));
+            } else {
+                for (let i = 0; i < MIN_COUNT; i++) createTextRow();
+            }
+        } catch (e) {}
+    }
+    loadSetting();
+
+    goBtn.addEventListener('click', () => {
+        const customTextsArr = [];
+        textWrap.querySelectorAll('.custom-text').forEach(inp => {
+            const v = inp.value.trim();
+            if (v) customTextsArr.push(v);
+        });
+
+        sessionStorage.setItem("halloweenSetting", JSON.stringify({
+            bats:       Number(batsInput.value),
+            music:      musicSel.value,
+            color:      colorInput.value,
+            theme:      themeSel.value,
+            lightning:  lightningChk.checked,
+            fog:        fogChk.checked,
+            name:       userNameInput.value.trim(),
+            customTexts: customTextsArr
+        }));
+        location.href = "page7.html";
+    });
+</script>
+</body>
+</html>

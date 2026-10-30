@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+<head>
+    <meta charset="UTF-8">
+    <title>首页</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft Yahei", sans-serif;
+        }
+        body {
+            min-height: 100vh;
+            background: #ffffff;
+            /* 适配全面屏底部手势条 */
+            padding: 40px 20px calc(110px + env(safe-area-inset-bottom));
+            text-align: center;
+            color: #222;
+        }
+        .container {
+            margin-bottom: 40px;
+        }
+        h1 {
+            font-size: clamp(1.7rem,5vw,2.6rem);
+            margin-bottom: 14px;
+        }
+        h2 {
+            font-size: clamp(1.3rem,4vw,2rem);
+            margin-bottom:12px;
+        }
+        p {
+            font-size: 1.05rem;
+            color: #333;
+            margin-bottom: 24px;
+        }
+        .底部按钮组 {
+            position: fixed;
+            left:20px;
+            right:20px;
+            /* 增加手机底部安全区偏移 */
+            bottom: calc(20px + env(safe-area-inset-bottom));
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap:16px;
+            max-width:900px;
+            margin:0 auto;
+        }
+        .底部按钮组 button {
+            padding:18px;
+            border:none;
+            border-radius:8px;
+            background: #3b82f6;
+            color:#fff;
+            font-size:1.1rem;
+            cursor:pointer;
+            transition:0.3s ease;
+            touch-action: manipulation;
+        }
+        .底部按钮组 button:hover {
+            background-color: #2563eb;
+            box-shadow: 0 0 16px rgba(59,130,246,0.3);
+        }
+        /* 极小屏幕手机适配 */
+        @media (max-width:400px){
+            .底部按钮组 button{
+                padding:14px;
+                font-size:1rem;
+            }
+        }
+        /* 提示文字：3秒消失 */
+        .提示文字 {
+            font-size: 1.05rem;
+            color: #333;
+            margin-bottom: 40px;
+            transition: opacity 0.6s ease;
+        }
+        .隐藏 {
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>首页</h1>
+    <p class="提示文字">✅</p>
+</div>
+<div class="底部按钮组">
+    <button onclick="location.href='page2.html'">节日</button>
+    <button onclick="location.href='page3.html'">测试</button>
+</div>
+<script>
+    setTimeout(()=>{
+        const tip = document.querySelector('.提示文字');
+        if(tip) tip.classList.add('隐藏');
+    },1000);
+</script>
+</body>
+</html>

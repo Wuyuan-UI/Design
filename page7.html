@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+    <title>万圣节｜暗夜寻光</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html, body {
+            width:100%; height:100%; overflow:hidden;
+            background:#05030a;
+            font-family:"Microsoft Yahei", sans-serif;
+        }
+        canvas { display:block; width:100%; height:100%; touch-action:none; }
+
+        .hint {
+            position:fixed; left:50%; top:50%;
+            transform:translate(-50%,-50%);
+            color:rgba(255,205,160,.9);
+            font-size:15px; letter-spacing:1px; text-align:center;
+            pointer-events:none;
+            text-shadow:0 0 14px rgba(255,120,30,.7);
+            transition:opacity 1s ease;
+            z-index:10;
+        }
+        .hint.hide { opacity:0; }
+
+        /* ===== 底部按钮：分享 + 返回 ===== */
+        .back-wrap {
+            position:fixed; left:20px; right:20px;
+            bottom:calc(18px + env(safe-area-inset-bottom));
+            max-width:900px; margin:0 auto; z-index:20;
+            display:grid;
+            grid-template-columns:1fr 1.35fr;
+            gap:12px;
+            opacity:1; transition:opacity .6s ease;
+        }
+        .back-wrap.hide-btn { opacity:0; pointer-events:none; }
+        .back-wrap button {
+            width:100%; padding:14px 8px;
+            border-radius:10px;
+            font-size:1rem;
+            backdrop-filter:blur(6px);
+            -webkit-backdrop-filter:blur(6px);
+            touch-action:manipulation;
+            cursor:pointer;
+            transition:transform .2s ease, box-shadow .25s ease;
+        }
+        .back-wrap button:active { transform:scale(.97); }
+
+        /* 分享：暖橙 */
+        .back-wrap .btn-share {
+            background:rgba(255,150,60,.22);
+            color:#ffe2c0;
+            border:1px solid rgba(255,180,90,.5);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.28),
+            0 4px 18px rgba(255,140,40,.28);
+            text-shadow:0 1px 2px rgba(90,35,0,.5);
+        }
+
+        /* 返回：幽紫 */
+        .back-wrap .btn-back {
+            background:rgba(110,60,180,.28);
+            color:#ffd9b0;
+            border:1px solid rgba(255,150,60,.35);
+        }
+
+        /* ===== 轻提示 toast ===== */
+        .toast {
+            position:fixed; left:50%; top:50%;
+            transform:translate(-50%,-50%) scale(.92);
+            background:rgba(22,10,32,.9);
+            color:#ffd9b0;
+            padding:14px 22px;
+            border-radius:12px;
+            border:1px solid rgba(255,170,80,.35);
+            font-size:15px;
+            line-height:1.6;
+            text-align:center;
+            max-width:82vw;
+            word-break:break-all;
+            white-space:pre-line;
+            z-index:10001;
+            opacity:0;
+            pointer-events:none;
+            transition:opacity .25s ease, transform .25s ease;
+            box-shadow:0 8px 28px rgba(0,0,0,.5);
+        }
+        .toast.show {
+            opacity:1;
+            transform:translate(-50%,-50%) scale(1);
+        }
+
+        @media (max-width:480px) {
+            .back-wrap button { font-size:.92rem; padding:12px 6px; }
+            .back-wrap { grid-template-columns:1fr 1.3fr; gap:10px; }
+        }
+
+        #playPrompt {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 24px;
+            background: rgba(0, 0, 0, 0.55);
+            -webkit-backdrop-filter: blur(2px);
+            backdrop-filter: blur(2px);
+            color: #ffd9b0;
+            font-size: 18px;
+            letter-spacing: 1px;
+            text-align: center;
+            z-index: 10000;
+            cursor: pointer;
+            touch-action: manipulation;
+            text-shadow: 0 2px 10px rgba(255, 140, 40, 0.6);
+            user-select: none;
+            -webkit-user-select: none;
+        }
+    </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hint" id="hint">🕯️ 滑动手指，用烛光照亮黑暗</div>
+<div class="back-wrap" id="backWrap">
+    <button class="btn-share" id="btnShare">🔗 分享</button>
+    <button class="btn-back" id="btnBack">返回调整参数</button>
+</div>
+<audio id="bgMusic" loop preload="auto"></audio>
+
+<script>
+    /* ============================================================
+       统一后退函数
+       ============================================================ */
+    function goBack(fallback) {
+        var fromSameSite = false;
+        if (document.referrer) {
+            try {
+                fromSameSite = new URL(document.referrer).origin === location.origin;
+            } catch (e) {
+                fromSameSite = document.referrer.indexOf(location.hostname) !== -1 && location.hostname !== '';
+            }
+        }
+        if (fromSameSite && history.length > 1) {
+            history.back();
+        } else {
+            location.href = fallback;
+        }
+    }
+
+    /* ============================================================
+       🔗 分享工具：把设置编码进 URL，任何人打开即还原相同效果
+       ============================================================ */
+    function encodeShareToken(obj) {
+        try {
+            const bytes = new TextEncoder().encode(JSON.stringify(obj));
+            let bin = '';
+            for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+            return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        } catch (e) {
+            return '';
+        }
+    }
+
+    function decodeShareToken(token) {
+        let s = String(token).replace(/-/g, '+').replace(/_/g, '/');
+        while (s.length % 4) s += '=';
+        const bin = atob(s);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return JSON.parse(new TextDecoder().decode(bytes));
+    }
+
+    function readSettingFromUrl() {
+        const raw = (location.hash || '').replace(/^#/, '');
+        if (!raw) return null;
+        try {
+            const token = new URLSearchParams(raw).get('s');
+            if (!token) return null;
+            const obj = decodeShareToken(token);
+            return (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : null;
+        } catch (e) {
+            console.warn('分享参数解析失败', e);
+            return null;
+        }
+    }
+
+    /* ============================================================
+       参数（URL 分享参数优先，其次 sessionStorage）
+       ============================================================ */
+    let setting = null;
+    const urlSetting = readSettingFromUrl();
+    if (urlSetting) {
+        setting = urlSetting;
+        try { sessionStorage.setItem('halloweenSetting', JSON.stringify(urlSetting)); } catch (e) {}
+    } else {
+        try {
+            setting = JSON.parse(sessionStorage.getItem('halloweenSetting') || '{}');
+        } catch (e) {
+            setting = {};
+        }
+    }
+
+    const THEMES = {
+        night:  { bg1:'#1b0f2b', bg2:'#05030a', glow:'255,120,30',  moon:'255,214,150' },
+        purple: { bg1:'#1d0b33', bg2:'#06030f', glow:'150,110,255', moon:'200,180,255' },
+        blood:  { bg1:'#220a0a', bg2:'#060202', glow:'255,70,60',   moon:'255,150,140' },
+        zombie: { bg1:'#0e1f14', bg2:'#030a05', glow:'120,220,120', moon:'190,255,180' },
+        toxic:  { bg1:'#141a0b', bg2:'#050806', glow:'170,255,90',  moon:'210,255,170' },
+        gold:   { bg1:'#2a1a06', bg2:'#0a0602', glow:'255,190,60',  moon:'255,230,160' }
+    };
+    const theme       = THEMES[setting.theme] || THEMES.night;
+    const baseColor   = setting.color || '#ff9a3c';
+    const userName    = (setting.name || '').trim();
+    const batCountRaw = Math.max(0, Number(setting.bats ?? 14));
+    const lightningOn = setting.lightning !== false;
+    const fogOn       = setting.fog !== false;
+    const musicFile   = setting.music || 'off';
+
+    /* ============================================================
+       设备性能档位（自动降级）
+       ============================================================ */
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile|HarmonyOS/i.test(navigator.userAgent)
+        || (navigator.maxTouchPoints > 1 && window.innerWidth < 900);
+
+    const DPR_LIMIT = isMobile ? 1.5 : 2;
+    const batCount  = Math.min(batCountRaw, isMobile ? 22 : 40);
+    const FOG_COUNT = isMobile ? 3 : 4;
+    const FRAME_GAP = 1000 / 60;
+
+    /* ============================================================
+       祝福语池
+       ============================================================ */
+    const DEFAULT_TEXTS = [
+        '🎃 万圣节快乐','👻 不给糖就捣蛋','🦇 蝙蝠绕梁，好运绕着走','🍬 糖果满满，甜到发慌',
+        '🕸️ 蛛网结福','🌙 月圆之夜，万事顺遂','🕯️ 烛光不灭，喜乐不止','💀 骷髅也微笑',
+        '🧟 僵尸退散，霉运退散','🧙 女巫的祝福已送达','🕷️ 蜘蛛送吉，八方来喜','🪦 平安无事，岁岁安然',
+        '🔮 水晶球说：你会很好','🎭 面具之下是快乐','🍁 秋夜微凉，心里很暖','🔥 篝火正旺，好运正旺',
+        '🌫️ 迷雾散去，好运降临','⚡ 雷声隆隆，福气隆隆','🦉 猫头鹰替你看守好梦','🏚️ 古堡不孤单，你也不孤单',
+        '🕰️ 午夜钟声，敲响好运','👺 妖魔鬼怪都爱你','🎃 南瓜灯为你亮着','🕯️ 愿你夜夜安眠',
+        '🍬 甜甜蜜蜜，不捣蛋','👻 鬼怪也温柔','🕸️ 烦恼被蛛网粘住','🧹 女巫扫走霉运',
+        '🪄 魔法常在，惊喜常来','🕯️ 黑暗中有光','🎃 笑脸南瓜守护你','🌌 星河与鬼火，都在祝你',
+        '🦴 骨头不冷，日子不凉','👀 南瓜眼在偷偷看你','🎃 万圣夜，尽情狂欢','🦇 一蝙蝠，二蝙蝠，福气排成队',
+        '🍭 糖果管够，快乐久久','🧛 吸血鬼也怕你太可爱','🕸️ 蛛网高挂，福气满家','🎃 南瓜灯亮，好运登场',
+        '👻 小鬼头，大福气','🦇 蝙蝠飞飞，好运追追','🕯️ 烛光摇曳，心愿实现','🪦 墓碑不倒，快乐不老',
+        '🧟 僵尸绕道，喜事来到','🧙 魔法棒一挥，烦恼全飞','🕷️ 蜘蛛结网，好事成双','🔮 水晶球里，全是好消息',
+        '🎭 戴上面具，做最快乐的自己','🍁 枫叶红透，祝福送到','🔥 篝火暖暖，福气满满','🌫️ 迷雾散尽，前程光明',
+        '⚡ 雷声一响，黄金万两','🦉 猫头鹰睁眼，好梦不散','🏚️ 古堡灯火，为你守候','🕰️ 午夜十二点，好运正上演',
+        '👺 妖怪不可怕，没祝福才可怕','🍬 一颗糖，甜一年','👻 幽灵飘过，留下祝福','🕸️ 蛛网不粘烦恼，只粘好运',
+        '🧹 女巫骑扫帚，把霉运扫走','🪄 魔法不是传说，是今天的你','🕯️ 一盏烛光，一路平安','🎃 南瓜咧嘴笑，好事要来到',
+        '🌌 星河滚烫，万圣不慌','🦴 骨头硬朗，日子兴旺','👀 南瓜眼眨眨，幸福到你家','🦇 蝙蝠成群，福气成堆',
+        '🍭 捣蛋是假，爱你才是真','🧛 月光之下，祝福到达','🕷️ 蜘蛛爬爬，好运到家','🎃 南瓜圆圆，好运连连',
+        '👻 小幽灵，送祝福','🕯️ 烛光不灭，思念不绝','🔮 预言说：你会一直好运','🎭 面具一摘，快乐常在',
+        '🍁 秋风起，祝福至','🔥 火光跳动，心愿成真','🌫️ 雾里看花，好运到家','⚡ 闪电一亮，惊喜登场',
+        '🦉 夜行者，也有好梦','🏚️ 鬼屋不可怕，没糖才可怕','🕰️ 钟声一响，福气满堂','👺 小鬼难缠，好运常伴',
+        '🍬 不给糖，就给你祝福','👻 幽灵朋友，祝你无忧','🕸️ 蛛网密密，福气细细','🧹 扫走晦气，迎来喜气',
+        '🪄 魔法常在，童真不老','🕯️ 黑暗不可怕，祝福照亮它','🎃 南瓜灯，照前程','🌌 夜空深邃，祝福纯粹',
+        '🦴 骷髅跳舞，快乐同步','👀 偷偷看你，默默祝福你','🦇 蝙蝠倒挂，好运不下','🍭 糖果甜甜，日子甜甜',
+        '🧛 吸血鬼也懂浪漫，祝你好梦','🕷️ 蜘蛛织网，编织梦想','🎃 万圣之夜，喜乐无涯','👻 不给糖就捣蛋，给了糖就祝福'
+    ];
+
+    /* ============================================================
+       🎃 祝福语池（保留默认池的 emoji，自定义则用自定义数组）
+       ============================================================ */
+    const customTextsFiltered = Array.isArray(setting.customTexts)
+        ? setting.customTexts.map(t => String(t).trim()).filter(Boolean)
+        : [];
+    const hasCustomText = customTextsFiltered.length > 0;
+
+    let textPool = hasCustomText ? customTextsFiltered.slice() : DEFAULT_TEXTS.slice();
+    if (textPool.length === 0) textPool = ['🎃 万圣节快乐'];
+
+    /* ============================================================
+       🎲 随机表情装饰
+       ============================================================ */
+    const EMOJI_POOL = [
+        '🎃','👻','🦇','🍬','🕸️','🌙','🕯️','💀','🧟','🧙',
+        '🕷️','🪦','🔮','🎭','🍁','🔥','🌫️','⚡','🦉','🏚️',
+        '🕰️','👺','🌕','🧹','🪄','🦴','👀','🍂','🌌'
+    ];
+
+    function startsWithEmoji(str) {
+        if (!str) return false;
+        const cp = str.codePointAt(0);
+        return (
+            (cp >= 0x1F000 && cp <= 0x1FAFF) ||
+            (cp >= 0x2600  && cp <= 0x27BF)  ||
+            (cp >= 0x2B00  && cp <= 0x2BFF)  ||
+            (cp >= 0xFE00  && cp <= 0xFE0F)  ||
+            (cp >= 0x1F1E6 && cp <= 0x1F1FF)
+        );
+    }
+
+    function randomEmoji() {
+        return EMOJI_POOL[Math.floor(Math.random() * EMOJI_POOL.length)];
+    }
+
+    function decorate(raw) {
+        let body = raw;
+        if (hasCustomText && !startsWithEmoji(body)) {
+            body = randomEmoji() + ' ' + body;
+        }
+        if (userName) {
+            body = randomEmoji() + userName + '，' + body;
+        }
+        return body;
+    }
+
+    function hexToRgb(hex) {
+        const h = hex.replace('#', '');
+        const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+        return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+    const [BR, BG, BB] = hexToRgb(baseColor);
+
+    /* ============================================================
+       画布
+       ============================================================ */
+    const cvs = document.getElementById('c');
+    const ctx = cvs.getContext('2d');
+
+    let W = 0, H = 0, DPR = 1;
+
+    let sceneCvs = null;
+    let glowTex  = null;
+    let fogTex   = null;
+    let ghostTex = null;
+
+    let texts = [], bats = [], fogs = [], ghosts = [];
+    let light  = { x: 0, y: 0, r: 200 };
+    let target = { x: 0, y: 0 };
+    let lastPointer = 0;
+
+    let nextGhostAt = 0;
+
+    /* ---------- 纹理：光晕 ---------- */
+    function buildGlowTex() {
+        const s = 256;
+        glowTex = document.createElement('canvas');
+        glowTex.width = glowTex.height = s;
+        const g = glowTex.getContext('2d');
+        const rg = g.createRadialGradient(s/2, s/2, 0, s/2, s/2, s/2);
+        rg.addColorStop(0,   `rgba(${theme.glow},0.20)`);
+        rg.addColorStop(0.5, `rgba(${theme.glow},0.07)`);
+        rg.addColorStop(1,   `rgba(${theme.glow},0)`);
+        g.fillStyle = rg;
+        g.fillRect(0, 0, s, s);
+    }
+
+    /* ---------- 纹理：雾团 ---------- */
+    function buildFogTex() {
+        const s = 256;
+        fogTex = document.createElement('canvas');
+        fogTex.width = fogTex.height = s;
+        const g = fogTex.getContext('2d');
+        const rg = g.createRadialGradient(s/2, s/2, 0, s/2, s/2, s/2);
+        rg.addColorStop(0,   'rgba(150,120,200,0.12)');
+        rg.addColorStop(0.5, 'rgba(110,90,160,0.05)');
+        rg.addColorStop(1,   'rgba(0,0,0,0)');
+        g.fillStyle = rg;
+        g.fillRect(0, 0, s, s);
+    }
+
+    /* ---------- 纹理：幽灵 ---------- */
+    function buildGhostTex() {
+        const s = 256;
+        ghostTex = document.createElement('canvas');
+        ghostTex.width = ghostTex.height = s;
+        const g = ghostTex.getContext('2d');
+        const cx = s / 2;
+        const headY = s * 0.42;
+        const headR = s * 0.30;
+        const bodyBottom = s * 0.86;
+
+        g.fillStyle = 'rgba(232,240,255,0.92)';
+        g.shadowColor = 'rgba(180,220,255,0.95)';
+        g.shadowBlur = 22;
+
+        g.beginPath();
+        g.arc(cx, headY, headR, Math.PI, 0, false);
+        g.lineTo(cx + headR, bodyBottom - s * 0.04);
+
+        const waves = 3;
+        const segW = (headR * 2) / waves;
+        for (let i = 0; i < waves; i++) {
+            const sx = cx + headR - segW * i;
+            const ex = sx - segW;
+            const mid = (sx + ex) / 2;
+            const dip = i % 2 === 0 ? -1 : 1;
+            g.quadraticCurveTo(mid, bodyBottom + dip * s * 0.06, ex, bodyBottom - s * 0.04);
+        }
+        g.lineTo(cx - headR, headY);
+        g.closePath();
+        g.fill();
+
+        g.shadowBlur = 0;
+        g.fillStyle = 'rgba(40,30,70,0.88)';
+        const eyeY = headY - headR * 0.15;
+        const eyeRx = headR * 0.16;
+        const eyeRy = headR * 0.24;
+        g.beginPath();
+        g.ellipse(cx - headR * 0.36, eyeY, eyeRx, eyeRy, 0, 0, Math.PI * 2);
+        g.fill();
+        g.beginPath();
+        g.ellipse(cx + headR * 0.36, eyeY, eyeRx, eyeRy, 0, 0, Math.PI * 2);
+        g.fill();
+    }
+
+    /* ---------- 预渲染：背景 + 月亮 + 文字 ---------- */
+    function buildScene() {
+        sceneCvs = document.createElement('canvas');
+        sceneCvs.width  = Math.round(W * DPR);
+        sceneCvs.height = Math.round(H * DPR);
+        const sctx = sceneCvs.getContext('2d');
+        sctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+        const g = sctx.createLinearGradient(0, 0, W * 0.4, H);
+        g.addColorStop(0, theme.bg1);
+        g.addColorStop(1, theme.bg2);
+        sctx.fillStyle = g;
+        sctx.fillRect(0, 0, W, H);
+
+        const mx = W * 0.78, my = H * 0.16, mr = Math.min(W, H) * 0.075;
+        const mg = sctx.createRadialGradient(mx, my, 0, mx, my, mr * 4);
+        mg.addColorStop(0,    `rgba(${theme.moon},0.30)`);
+        mg.addColorStop(0.35, `rgba(${theme.moon},0.10)`);
+        mg.addColorStop(1,    `rgba(${theme.moon},0)`);
+        sctx.fillStyle = mg;
+        sctx.beginPath(); sctx.arc(mx, my, mr * 4, 0, Math.PI * 2); sctx.fill();
+
+        sctx.fillStyle = `rgba(${theme.moon},0.85)`;
+        sctx.beginPath(); sctx.arc(mx, my, mr, 0, Math.PI * 2); sctx.fill();
+
+        sctx.fillStyle = 'rgba(0,0,0,0.10)';
+        sctx.beginPath(); sctx.arc(mx - mr * 0.3, my - mr * 0.2, mr * 0.28, 0, Math.PI * 2); sctx.fill();
+        sctx.beginPath(); sctx.arc(mx + mr * 0.32, my + mr * 0.22, mr * 0.18, 0, Math.PI * 2); sctx.fill();
+
+        texts = [];
+        const count = isMobile
+            ? Math.max(14, Math.min(36, Math.round(W * H / 24000)))
+            : Math.max(26, Math.min(70, Math.round(W * H / 15000)));
+
+        const cols  = Math.ceil(Math.sqrt(count * W / H));
+        const rows  = Math.ceil(count / cols);
+        const cellW = W / cols;
+        const cellH = H / rows;
+
+        let idx = Math.floor(Math.random() * textPool.length);
+
+        sctx.textAlign = 'center';
+        sctx.textBaseline = 'middle';
+        sctx.shadowBlur = 10;
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (texts.length >= count) break;
+
+                const size = Math.max(12, Math.min(22, cellW * 0.30)) + (Math.random() * 5 - 2);
+                const content = decorate(textPool[idx++ % textPool.length]);
+
+                sctx.font = `600 ${size}px "Microsoft Yahei", sans-serif`;
+                const tw = sctx.measureText(content).width;
+
+                let x = c * cellW + cellW * (0.15 + Math.random() * 0.7);
+                let y = r * cellH + cellH * (0.2  + Math.random() * 0.6);
+                x = Math.min(Math.max(x, tw / 2 + 6), W - tw / 2 - 6);
+                y = Math.min(Math.max(y, size + 8), H - size - 8);
+
+                const rot  = (Math.random() - 0.5) * 0.18;
+                const alpha = 0.55 + Math.random() * 0.45;
+                const tint = Math.random() < 0.18 ? '160,140,255'
+                    : Math.random() < 0.10 ? '150,235,170'
+                        : `${BR},${BG},${BB}`;
+
+                sctx.save();
+                sctx.translate(x, y);
+                sctx.rotate(rot);
+                sctx.shadowColor = `rgba(${tint},0.55)`;
+                sctx.fillStyle = `rgba(${tint},${alpha})`;
+                sctx.fillText(content, 0, 0);
+                sctx.restore();
+
+                texts.push({ x, y });
+            }
+        }
+    }
+
+    /* ---------- 蝙蝠 ---------- */
+    function buildBats() {
+        bats = [];
+        for (let i = 0; i < batCount; i++) {
+            const b = {
+                x    : Math.random() * W,
+                baseY: H * (0.06 + Math.random() * 0.55),
+                y    : 0,
+                size : 7 + Math.random() * 9,
+                speed: 0.35 + Math.random() * 0.9,
+                amp  : 10 + Math.random() * 26,
+                phase: Math.random() * Math.PI * 2,
+                flap : 0.010 + Math.random() * 0.014,
+                offX : 0,
+                offY : 0
+            };
+            b.y = b.baseY;
+            bats.push(b);
+        }
+    }
+
+    /* ---------- 雾 ---------- */
+    function buildFog() {
+        fogs = [];
+        for (let i = 0; i < FOG_COUNT; i++) {
+            fogs.push({
+                x    : Math.random() * W,
+                y    : H * (0.62 + Math.random() * 0.42),
+                r    : Math.max(W, H) * (0.28 + Math.random() * 0.3),
+                speed: 0.08 + Math.random() * 0.18,
+                phase: Math.random() * Math.PI * 2
+            });
+        }
+    }
+
+    /* ---------- resize ---------- */
+    function resize() {
+        DPR = Math.min(window.devicePixelRatio || 1, DPR_LIMIT);
+        W = window.innerWidth;
+        H = window.innerHeight;
+
+        cvs.width  = Math.round(W * DPR);
+        cvs.height = Math.round(H * DPR);
+        cvs.style.width  = W + 'px';
+        cvs.style.height = H + 'px';
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+        light.r = Math.min(W, H) * (isMobile ? 0.36 : 0.27);
+        if (!light.x) {
+            light.x = W / 2;
+            light.y = H * 0.45;
+            target.x = light.x;
+            target.y = light.y;
+        }
+
+        buildGlowTex();
+        buildFogTex();
+        buildGhostTex();
+        buildScene();
+        buildBats();
+        buildFog();
+
+        ghosts = [];
+        nextGhostAt = performance.now() + 3500 + Math.random() * 4500;
+    }
+
+    /* ============================================================
+       光源
+       ============================================================ */
+    function setPointer(x, y) {
+        target.x = x;
+        target.y = y;
+        lastPointer = performance.now();
+    }
+
+    window.addEventListener('pointermove', e => setPointer(e.clientX, e.clientY), { passive: true });
+    window.addEventListener('touchmove', e => {
+        if (e.target.closest && e.target.closest('.back-wrap')) return;
+        if (e.touches[0]) setPointer(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
+
+    function updateLight(now) {
+        if (now - lastPointer > 2200) {
+            const t = now / 1000;
+            target.x = W * 0.5 + Math.sin(t * 0.42) * W * 0.30 + Math.sin(t * 0.17) * W * 0.10;
+            target.y = H * 0.48 + Math.sin(t * 0.63 + 1.2) * H * 0.26;
+        }
+        light.x += (target.x - light.x) * 0.075;
+        light.y += (target.y - light.y) * 0.075;
+    }
+
+    /* ============================================================
+       蝙蝠（会躲开烛光）
+       ============================================================ */
+    function drawBats(now) {
+        const lx = light.x, ly = light.y;
+        const repelR  = light.r * (isMobile ? 0.82 : 0.95);
+        const repelR2 = repelR * repelR;
+        const maxOff  = Math.min(180, Math.min(W, H) * 0.24);
+
+        for (const b of bats) {
+            b.x += b.speed;
+            if (b.x > W + 60) { b.x = -60; b.offX = 0; }
+            b.y = b.baseY + Math.sin(now / 1000 * 0.9 + b.phase) * b.amp;
+
+            const px = b.x + b.offX;
+            const py = b.y + b.offY;
+            const dx = px - lx;
+            const dy = py - ly;
+            const d2 = dx * dx + dy * dy;
+
+            let fx = 0, fy = 0;
+            if (d2 < repelR2 && d2 > 1) {
+                const d = Math.sqrt(d2);
+                const force = (1 - d / repelR);
+                fx = (dx / d) * force * 3.2;
+                fy = (dy / d) * force * 3.2;
+            }
+
+            b.offX = b.offX * 0.88 + fx;
+            b.offY = b.offY * 0.88 + fy;
+
+            if (b.offX >  maxOff) b.offX =  maxOff;
+            if (b.offX < -maxOff) b.offX = -maxOff;
+            if (b.offY >  maxOff) b.offY =  maxOff;
+            if (b.offY < -maxOff) b.offY = -maxOff;
+
+            const flap = Math.sin(now * b.flap + b.phase);
+            const s = b.size / 10;
+
+            ctx.save();
+            ctx.translate(b.x + b.offX, b.y + b.offY);
+            ctx.scale(s, s);
+            ctx.fillStyle = 'rgba(38,24,52,0.95)';
+
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 2.1, 3.1, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(0, -1.2);
+            ctx.quadraticCurveTo(-6, -4.5 + flap * 4.2, -11.5, 0.8 + flap * 3.2);
+            ctx.quadraticCurveTo(-6.5, 0.6 + flap * 1.2, 0, 1.6);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(0, -1.2);
+            ctx.quadraticCurveTo(6, -4.5 + flap * 4.2, 11.5, 0.8 + flap * 3.2);
+            ctx.quadraticCurveTo(6.5, 0.6 + flap * 1.2, 0, 1.6);
+            ctx.fill();
+
+            ctx.restore();
+        }
+    }
+
+    /* ============================================================
+       雾
+       ============================================================ */
+    function drawFog(now) {
+        if (!fogOn || !fogTex) return;
+        ctx.globalCompositeOperation = 'lighter';
+        for (const f of fogs) {
+            f.x += f.speed;
+            if (f.x - f.r > W) f.x = -f.r;
+            const y = f.y + Math.sin(now / 2000 + f.phase) * 16;
+            ctx.drawImage(fogTex, f.x - f.r, y - f.r, f.r * 2, f.r * 2);
+        }
+        ctx.globalCompositeOperation = 'source-over';
+    }
+
+    /* ============================================================
+       幽灵闪现
+       ============================================================ */
+    function trySpawnGhost(now) {
+        if (now < nextGhostAt) return;
+        if (ghosts.length >= 2) { nextGhostAt = now + 3000; return; }
+
+        ghosts.push({
+            x     : W * (0.12 + Math.random() * 0.76),
+            baseY : H * (0.40 + Math.random() * 0.42),
+            y     : 0,
+            size  : (isMobile ? 22 : 30) + Math.random() * 18,
+            born  : now,
+            ttl   : 2600 + Math.random() * 1500,
+            phase : Math.random() * Math.PI * 2
+        });
+
+        nextGhostAt = now + 8000 + Math.random() * 9000;
+    }
+
+    function drawGhosts(now) {
+        trySpawnGhost(now);
+
+        for (let i = ghosts.length - 1; i >= 0; i--) {
+            const g = ghosts[i];
+            const p = (now - g.born) / g.ttl;
+            if (p >= 1) { ghosts.splice(i, 1); continue; }
+
+            const a = Math.sin(p * Math.PI);
+            if (a <= 0) continue;
+
+            const y = g.baseY + Math.sin(now / 700 + g.phase) * 12;
+            const sz = g.size;
+
+            ctx.globalAlpha = a * 0.65;
+            ctx.drawImage(ghostTex, g.x - sz, y - sz, sz * 2, sz * 2);
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    /* ============================================================
+       闪电
+       ============================================================ */
+    let flash = 0;
+    let bolt = null;
+    let nextFlash = performance.now() + 3500 + Math.random() * 4000;
+
+    function makeBolt() {
+        const pts = [];
+        let x = W * (0.15 + Math.random() * 0.7);
+        let y = 0;
+        const endY = H * (0.35 + Math.random() * 0.35);
+        const seg = 9;
+        for (let i = 0; i <= seg; i++) {
+            pts.push({ x, y });
+            x += (Math.random() - 0.5) * W * 0.07;
+            y += endY / seg;
+        }
+        return pts;
+    }
+
+    function drawLightning(now) {
+        if (!lightningOn) return;
+        if (now > nextFlash) {
+            flash = 1;
+            bolt = makeBolt();
+            playThunder();
+            nextFlash = now + 5000 + Math.random() * 7000;
+        }
+        if (flash <= 0) return;
+
+        ctx.fillStyle = `rgba(220,215,255,${flash * 0.26})`;
+        ctx.fillRect(0, 0, W, H);
+
+        if (bolt && flash > 0.55) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.strokeStyle = `rgba(235,230,255,${flash})`;
+            ctx.lineWidth = 1.6;
+            ctx.shadowColor = 'rgba(200,190,255,0.9)';
+            ctx.shadowBlur = 12;
+            ctx.beginPath();
+            ctx.moveTo(bolt[0].x, bolt[0].y);
+            for (let i = 1; i < bolt.length; i++) ctx.lineTo(bolt[i].x, bolt[i].y);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        flash -= 0.045;
+        if (flash < 0) flash = 0;
+    }
+
+    /* ============================================================
+       乌鸦叫（Web Audio 合成）
+       ============================================================ */
+    let audioCtx = null;
+    let noiseBuffer = null;
+    let lastCrow = 0;
+
+    function ensureAudio() {
+        if (!audioCtx) {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) return;
+            audioCtx = new AC();
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function getNoiseBuffer() {
+        if (noiseBuffer) return noiseBuffer;
+        const len = Math.floor(audioCtx.sampleRate * 0.3);
+        noiseBuffer = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+        const d = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+        return noiseBuffer;
+    }
+
+    function playCrow() {
+        const now = performance.now();
+        if (now - lastCrow < 220) return;
+        lastCrow = now;
+
+        ensureAudio();
+        if (!audioCtx) return;
+
+        const t = audioCtx.currentTime;
+
+        const osc1 = audioCtx.createOscillator();
+        const osc2 = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        const filter = audioCtx.createBiquadFilter();
+        const noise = audioCtx.createBufferSource();
+        const noiseGain = audioCtx.createGain();
+
+        osc1.type = 'sawtooth';
+        osc2.type = 'square';
+        osc1.frequency.setValueAtTime(680, t);
+        osc1.frequency.exponentialRampToValueAtTime(210, t + 0.24);
+        osc2.frequency.setValueAtTime(340, t);
+        osc2.frequency.exponentialRampToValueAtTime(110, t + 0.24);
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1500, t);
+        filter.frequency.exponentialRampToValueAtTime(520, t + 0.26);
+        filter.Q.value = 1.6;
+
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.22, t + 0.018);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.30);
+
+        noise.buffer = getNoiseBuffer();
+        noiseGain.gain.setValueAtTime(0.10, t);
+        noiseGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.20);
+
+        osc1.connect(filter);
+        osc2.connect(filter);
+        noise.connect(noiseGain);
+        noiseGain.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc1.start(t); osc2.start(t); noise.start(t);
+        osc1.stop(t + 0.34); osc2.stop(t + 0.34); noise.stop(t + 0.30);
+    }
+
+    /* ============================================================
+       雷声（Web Audio 合成，与闪电同步）
+       ============================================================ */
+    let thunderBuffer = null;
+    let lastThunder = 0;
+    let thunderCompressor = null;
+
+    function getThunderBuffer() {
+        if (thunderBuffer) return thunderBuffer;
+        const len = Math.floor(audioCtx.sampleRate * 3);
+        thunderBuffer = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+        const d = thunderBuffer.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+        return thunderBuffer;
+    }
+
+    function playThunder() {
+        const now = performance.now();
+        if (now - lastThunder < 800) return;
+        lastThunder = now;
+
+        ensureAudio();
+        if (!audioCtx) return;
+
+        if (!thunderCompressor) {
+            thunderCompressor = audioCtx.createDynamicsCompressor();
+            thunderCompressor.threshold.value = -12;
+            thunderCompressor.knee.value      = 20;
+            thunderCompressor.ratio.value     = 6;
+            thunderCompressor.attack.value    = 0.003;
+            thunderCompressor.release.value   = 0.25;
+            thunderCompressor.connect(audioCtx.destination);
+        }
+
+        const t = audioCtx.currentTime;
+        const vol = 0.85 + Math.random() * 0.15;
+
+        // —— 1. 近雷爆裂声（高频短促）
+        const crackSrc = audioCtx.createBufferSource();
+        crackSrc.buffer = getNoiseBuffer();
+        const crackFilter = audioCtx.createBiquadFilter();
+        crackFilter.type = 'highpass';
+        crackFilter.frequency.value = 700;
+        const crackGain = audioCtx.createGain();
+        crackGain.gain.setValueAtTime(0.0001, t);
+        crackGain.gain.exponentialRampToValueAtTime(1.2 * vol, t + 0.008);
+        crackGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+        crackSrc.connect(crackFilter);
+        crackFilter.connect(crackGain);
+        crackGain.connect(thunderCompressor);
+        crackSrc.start(t);
+        crackSrc.stop(t + 0.38);
+
+        // —— 2. 滚雷轰鸣（低频长尾）
+        const rumbleSrc = audioCtx.createBufferSource();
+        rumbleSrc.buffer = getThunderBuffer();
+        const rumbleFilter = audioCtx.createBiquadFilter();
+        rumbleFilter.type = 'lowpass';
+        rumbleFilter.frequency.setValueAtTime(900, t);
+        rumbleFilter.frequency.exponentialRampToValueAtTime(70, t + 2.6);
+        rumbleFilter.Q.value = 0.7;
+        const rumbleGain = audioCtx.createGain();
+        rumbleGain.gain.setValueAtTime(0.0001, t);
+        rumbleGain.gain.exponentialRampToValueAtTime(1.6 * vol, t + 0.10);
+        rumbleGain.gain.exponentialRampToValueAtTime(0.9  * vol, t + 0.90);
+        rumbleGain.gain.exponentialRampToValueAtTime(0.0001,     t + 2.90);
+        rumbleSrc.connect(rumbleFilter);
+        rumbleFilter.connect(rumbleGain);
+        rumbleGain.connect(thunderCompressor);
+        rumbleSrc.start(t);
+        rumbleSrc.stop(t + 3.0);
+    }
+
+    /* ============================================================
+       主循环
+       ============================================================ */
+    let lastFrame = 0;
+
+    function loop(now) {
+        requestAnimationFrame(loop);
+
+        if (document.hidden) { lastFrame = now; return; }
+        if (now - lastFrame < FRAME_GAP * 0.9) return;
+        lastFrame = now;
+
+        updateLight(now);
+
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+
+        // ① 预渲染场景
+        ctx.drawImage(sceneCvs, 0, 0, W, H);
+
+        // ② 黑暗 + 烛光洞
+        const g = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, light.r);
+        g.addColorStop(0,    'rgba(3,2,8,0)');
+        g.addColorStop(0.35, 'rgba(3,2,8,0.18)');
+        g.addColorStop(0.70, 'rgba(3,2,8,0.72)');
+        g.addColorStop(1,    'rgba(3,2,8,0.945)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+
+        // ③ 蝙蝠（躲光）
+        drawBats(now);
+
+        // ④ 雾
+        drawFog(now);
+
+        // ⑤ 幽灵
+        drawGhosts(now);
+
+        // ⑥ 光晕
+        if (glowTex) {
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.drawImage(
+                glowTex,
+                light.x - light.r * 1.05,
+                light.y - light.r * 1.05,
+                light.r * 2.1,
+                light.r * 2.1
+            );
+            ctx.globalCompositeOperation = 'source-over';
+        }
+
+        // ⑦ 闪电
+        drawLightning(now);
+    }
+
+    /* ============================================================
+       背景音乐
+       ============================================================ */
+    const bgMusic = document.getElementById('bgMusic');
+
+    function showPlayPrompt() {
+        if (document.getElementById('playPrompt')) return;
+        const p = document.createElement('div');
+        p.id = 'playPrompt';
+        p.innerText = '🎵 点击任意地方播放音乐';
+        document.body.appendChild(p);
+
+        let handled = false;
+        function startPlay(e) {
+            if (handled) return;
+            handled = true;
+            if (e && e.type === 'touchend' && e.cancelable) e.preventDefault();
+            bgMusic.play().then(() => {
+                console.log('✅ 点击后播放成功');
+            }).catch(err => console.warn('⚠️ 点击后依然无法播放:', err));
+            p.remove();
+        }
+        p.addEventListener('touchend', startPlay, { passive: false });
+        p.addEventListener('click', startPlay);
+    }
+
+    function tryPlayMusic() {
+        bgMusic.play().then(() => {
+            console.log('✅ 背景音乐自动播放成功');
+            const p = document.getElementById('playPrompt');
+            if (p) p.remove();
+        }).catch(() => showPlayPrompt());
+    }
+
+    if (musicFile !== 'off') {
+        bgMusic.src = `static/${musicFile}`;
+        tryPlayMusic();
+        window.addEventListener('load', tryPlayMusic, { once: true });
+    }
+
+    /* ============================================================
+       返回 / 分享按钮（带防误触锁）+ 点击乌鸦叫
+       ============================================================ */
+    const backWrap = document.getElementById('backWrap');
+    const btnBack  = document.getElementById('btnBack');
+    const btnShare = document.getElementById('btnShare');
+    let backTimer = null;
+    let backPeTimer = null;
+    let backBtnLockUntil = 0;
+    const BACK_WAKE_LOCK = 450;
+
+    // ★ 是否从分享链接进入：URL 带 #s= 参数
+    const isFromShare = !!urlSetting;
+
+    function scheduleHide() {
+        clearTimeout(backTimer);
+        if (backWrap.classList.contains('hide-btn')) {
+            backBtnLockUntil = performance.now() + BACK_WAKE_LOCK;
+        }
+        backWrap.classList.remove('hide-btn');
+        backTimer = setTimeout(() => backWrap.classList.add('hide-btn'), 3200);
+    }
+
+    /* ============================================================
+       🔗 分享：一键生成可直接打开的链接
+       ============================================================ */
+    let toastTimer = null;
+    function showToast(msg, duration) {
+        let el = document.getElementById('shareToast');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'shareToast';
+            el.className = 'toast';
+            document.body.appendChild(el);
+        }
+        el.textContent = msg;
+        void el.offsetWidth;
+        el.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove('show'), duration || 2400);
+    }
+
+    function buildShareLink() {
+        const base = location.href.split('#')[0];
+        const token = encodeShareToken(setting);
+        return base + '#s=' + token;
+    }
+
+    function fallbackCopy(text, okMsg) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.top = '-9999px';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        ta.setSelectionRange(0, text.length);
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+        if (ok) showToast(okMsg, 2600);
+        else window.prompt('请长按全选并复制下面的链接：', text);
+    }
+
+    function copyText(text, okMsg) {
+        const msg = okMsg || '✅ 分享链接已复制\n发给朋友即可打开';
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text)
+                .then(() => showToast(msg, 2600))
+                .catch(() => fallbackCopy(text, msg));
+        } else {
+            fallbackCopy(text, msg);
+        }
+    }
+
+    btnShare.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (performance.now() < backBtnLockUntil) {
+            e.preventDefault();
+            return;
+        }
+        if (isFromShare) {                              // ★ 分享链接进来不允许再分享
+            showToast('分享链接不支持分享');
+            return;
+        }
+        scheduleHide();
+
+        const link = buildShareLink();
+        const tooLong = link.length >= 1800;
+
+        if (navigator.share && !tooLong) {
+            try {
+                await navigator.share({
+                    title: '🎃 送你一份万圣节祝福',
+                    text: '点开看看这份万圣节祝福吧～',
+                    url: link
+                });
+                return;
+            } catch (err) {
+                if (err && err.name === 'AbortError') return;
+            }
+        }
+
+        if (tooLong) {
+            copyText(link, '⚠️ 内容较多，链接较长\n已复制，若发送失败可减少自定义祝福语');
+        } else {
+            copyText(link);
+        }
+    });
+    btnShare.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
+
+    btnBack.addEventListener('click', (e) => {
+        if (performance.now() < backBtnLockUntil) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+        if (isFromShare) {                              // ★ 分享链接进来不允许改参数
+            showToast('分享链接不支持更改参数');
+            return;
+        }
+        bgMusic.pause();
+        goBack('page5.html');
+    });
+
+    window.addEventListener('pointerdown', e => {
+        if (e.target.closest && e.target.closest('.back-wrap')) return;
+        setPointer(e.clientX, e.clientY);
+        scheduleHide();
+        playCrow();
+        if (musicFile !== 'off' && bgMusic.paused) {
+            bgMusic.play().then(() => {
+                const p = document.getElementById('playPrompt');
+                if (p) p.remove();
+            }).catch(() => {});
+        }
+    }, { passive: true });
+
+    /* ============================================================
+       启动
+       ============================================================ */
+    resize();
+
+    window.addEventListener('resize', () => {
+        const cx = light.x / (W || 1), cy = light.y / (H || 1);
+        resize();
+        light.x = cx * W;
+        light.y = cy * H;
+        target.x = light.x;
+        target.y = light.y;
+    });
+
+    requestAnimationFrame(loop);
+    scheduleHide();
+    setTimeout(() => document.getElementById('hint').classList.add('hide'), 3200);
+
+    /* ============================================================
+       从 bfcache 恢复时（浏览器后退回本页），重置状态
+       ============================================================ */
+    window.addEventListener('pageshow', (e) => {
+        if (!e.persisted) return;
+        if (musicFile !== 'off' && bgMusic.paused) {
+            bgMusic.play().catch(() => {});
+        }
+        scheduleHide();
+    });
+</script>
+</body>
+</html>

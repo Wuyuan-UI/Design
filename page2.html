@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+<head>
+    <meta charset="UTF-8">
+    <title>祝福语选项</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; font-family:"Microsoft Yahei", sans-serif; }
+        body {
+            min-height:100vh;
+            background:#ffffff;
+            padding:40px 20px calc(180px + env(safe-area-inset-bottom));
+            text-align:center;
+            color:#222;
+        }
+        h1 { font-size:clamp(1.7rem,5vw,2.6rem); margin-bottom:14px; }
+        .提示文字 {
+            font-size:1.05rem; color:#333; margin-bottom:40px;
+            transition:opacity 0.6s ease;
+        }
+        .隐藏 { opacity:0; pointer-events:none; }
+
+        /* ===== 返回首页按钮 ===== */
+        .back-btn-wrap{
+            position:fixed; left:20px; right:20px;
+            bottom:calc(88px + env(safe-area-inset-bottom));
+            max-width:900px; margin:0 auto;
+        }
+        .back-btn-wrap button{
+            width:100%; padding:16px; border:none; border-radius:8px;
+            background:#64748b; color:#fff; font-size:1.1rem;
+            cursor:pointer; transition:0.3s ease; touch-action:manipulation;
+        }
+        .back-btn-wrap button:hover{
+            background-color:#475569;
+            box-shadow:0 0 16px rgba(100,116,139,0.3);
+        }
+
+        /* ===== 底部双按钮容器 ===== */
+        .底部按钮组 {
+            position:fixed; left:20px; right:20px;
+            bottom:calc(20px + env(safe-area-inset-bottom));
+            display:grid; grid-template-columns:1fr 1fr; gap:14px;
+            max-width:900px; margin:0 auto;
+        }
+
+        /* ===== 按钮通用 ===== */
+        .底部按钮组 button {
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 18px 12px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            transition: transform .22s ease, box-shadow .25s ease, filter .25s ease;
+        }
+        .底部按钮组 button:active { transform: scale(.97); }
+        .btn-text, .btn-deco { position: relative; z-index: 1; }
+        .btn-deco { font-size: 1.05em; }
+
+        /* ===== 圣诞：冰蓝 + 雪花 ===== */
+        .btn-christmas {
+            background: linear-gradient(135deg, #e3f4ff 0%, #9fd2f5 45%, #5aa7e0 100%);
+            color: #0a3d6b;
+            box-shadow: 0 6px 18px rgba(90,167,224,.35),
+            inset 0 1px 0 rgba(255,255,255,.85);
+            text-shadow: 0 1px 0 rgba(255,255,255,.6);
+        }
+        /* 雪点纹理 */
+        .btn-christmas::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                    radial-gradient(circle, rgba(255,255,255,.95) 1.2px, transparent 1.6px),
+                    radial-gradient(circle, rgba(255,255,255,.70) 1px,   transparent 1.4px),
+                    radial-gradient(circle, rgba(255,255,255,.55) 1.4px, transparent 1.8px);
+            background-size: 26px 26px, 38px 38px, 52px 52px;
+            background-position: 0 0, 12px 16px, 26px 8px;
+            opacity: .75;
+            pointer-events: none;
+        }
+        /* 扫光 */
+        .btn-christmas::after {
+            content: '';
+            position: absolute;
+            inset: -30% -10%;
+            background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.6) 48%, transparent 62%);
+            transform: translateX(-120%);
+            transition: transform .9s ease;
+            pointer-events: none;
+        }
+        .btn-christmas:hover::after { transform: translateX(120%); }
+        .btn-christmas:hover {
+            box-shadow: 0 8px 24px rgba(90,167,224,.5),
+            inset 0 1px 0 rgba(255,255,255,.9);
+            filter: brightness(1.03);
+        }
+
+        /* ===== 万圣节：橙 + 蛛网 + 南瓜 ===== */
+        .btn-halloween {
+            background: linear-gradient(135deg, #ffb35c 0%, #f97316 45%, #c2410c 100%);
+            color: #fff;
+            box-shadow: 0 6px 18px rgba(249,115,22,.4),
+            inset 0 1px 0 rgba(255,255,255,.35);
+            text-shadow: 0 1px 2px rgba(120,40,0,.4);
+        }
+        /* 左上角蛛网 */
+        .btn-halloween::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 56px; height: 56px;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 50 50'><g fill='none' stroke='white' stroke-opacity='0.6' stroke-width='1.2'><line x1='0' y1='0' x2='48' y2='14'/><line x1='0' y1='0' x2='38' y2='32'/><line x1='0' y1='0' x2='14' y2='48'/><path d='M8,0 Q8,8 0,8'/><path d='M17,0 Q17,17 0,17'/><path d='M27,0 Q27,27 0,27'/><path d='M38,0 Q38,38 0,38'/></g></svg>");
+            background-repeat: no-repeat;
+            background-size: contain;
+            pointer-events: none;
+        }
+        /* 右下角蛛网 */
+        .btn-halloween::after {
+            content: '';
+            position: absolute;
+            bottom: 0; right: 0;
+            width: 48px; height: 48px;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 50 50'><g fill='none' stroke='white' stroke-opacity='0.45' stroke-width='1.2'><line x1='50' y1='50' x2='2' y2='36'/><line x1='50' y1='50' x2='12' y2='18'/><line x1='50' y1='50' x2='36' y2='2'/><path d='M42,50 Q42,42 50,42'/><path d='M33,50 Q33,33 50,33'/><path d='M23,50 Q23,23 50,23'/><path d='M12,50 Q12,12 50,12'/></g></svg>");
+            background-repeat: no-repeat;
+            background-size: contain;
+            pointer-events: none;
+        }
+        .btn-halloween:hover {
+            box-shadow: 0 8px 24px rgba(249,115,22,.55),
+            inset 0 1px 0 rgba(255,255,255,.4);
+            filter: brightness(1.05);
+        }
+
+        /* ===== 小屏适配 ===== */
+        @media (max-width:400px){
+            .底部按钮组 button,
+            .back-btn-wrap button{ padding:14px 8px; font-size:1rem; }
+            .底部按钮组 button { gap: 5px; }
+            .btn-halloween::before { width: 42px; height: 42px; }
+            .btn-halloween::after  { width: 36px; height: 36px; }
+        }
+    </style>
+</head>
+<body>
+<h1>祝福语选项</h1>
+<p class="提示文字">✅</p>
+
+<div class="back-btn-wrap">
+    <button onclick="goBack('index.html')">返回首页</button>
+</div>
+
+<!-- 圣诞→page4 参数页；万圣节→page5 参数页 -->
+<div class="底部按钮组">
+    <button class="btn-christmas" onclick="location.href='page4.html'">
+        <span class="btn-deco">❄️</span>
+        <span class="btn-text">圣诞节</span>
+        <span class="btn-deco">❄️</span>
+    </button>
+    <button class="btn-halloween" onclick="location.href='page5.html'">
+        <span class="btn-deco">🎃</span>
+        <span class="btn-text">万圣节</span>
+        <span class="btn-deco">🎃</span>
+    </button>
+</div>
+
+<script>
+    /* ============================================================
+       统一后退函数
+       - 站内导航进入：history.back()，真实后退，浏览器返回键正常
+       - 直接打开/书签/外部链接进入：降级为 location.href
+       ============================================================ */
+    function goBack(fallback) {
+        var fromSameSite = false;
+        if (document.referrer) {
+            try {
+                fromSameSite = new URL(document.referrer).origin === location.origin;
+            } catch (e) {
+                fromSameSite = document.referrer.indexOf(location.hostname) !== -1 && location.hostname !== '';
+            }
+        }
+        var fromParamPage = false;
+        if (fromSameSite) {
+            try {
+                var refPath = new URL(document.referrer).pathname;
+                fromParamPage = /page4\.html$|page5\.html$/.test(refPath);
+            } catch (e) {}
+        }
+        if (fromParamPage) {
+            location.href = fallback;
+        } else if (fromSameSite && history.length > 1) {
+            history.back();
+        } else {
+            location.href = fallback;
+        }
+    }
+
+    /* 回到本页时清空节日参数，下次进入即为初始状态 */
+    window.addEventListener('pageshow', function () {
+        sessionStorage.removeItem('xmasSetting');
+        sessionStorage.removeItem('halloweenSetting');
+    });
+
+    setTimeout(()=>{
+        document.querySelector('.提示文字').classList.add('隐藏');
+    },1000);
+</script>
+</body>
+</html>

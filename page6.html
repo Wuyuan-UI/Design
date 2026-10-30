@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+<head>
+    <meta charset="UTF-8">
+    <title>圣诞节｜效果展示</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft Yahei", sans-serif; }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #0b1524;
+        }
+
+        /* ===== 下雪背景画布 ===== */
+        #snowCanvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* ===== 弹窗基础样式 ===== */
+        .xmas-popup {
+            position: fixed;
+            padding: 16px 22px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.92);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+            font-size: 1.1rem;
+            font-weight: bold;
+            z-index: 99;
+            pointer-events: none;
+            white-space: nowrap;
+            transform: scale(0);
+            transform-origin: center center;
+            opacity: 0;
+            will-change: transform, opacity;
+            backface-visibility: hidden;
+
+            --pop-speed: 300ms;
+            --pop-out-speed: 200ms;
+        }
+
+        /* 入场：果冻回弹 */
+        .xmas-popup.pop-in {
+            animation: popIn var(--pop-speed, 300ms) linear both;
+        }
+
+        /* 退场：先胀一下再缩没 */
+        .xmas-popup.pop-out {
+            animation: popOut var(--pop-out-speed, 200ms) linear both;
+        }
+
+        @keyframes popIn {
+            0%   { transform: scale(0.2) rotate(-6deg);  opacity: 0; }
+            18%  { opacity: 1; }
+            32%  { transform: scale(1.14) rotate(3deg); }
+            50%  { transform: scale(0.94) rotate(-1.6deg); }
+            66%  { transform: scale(1.06) rotate(0.9deg); }
+            80%  { transform: scale(0.975) rotate(-0.4deg); }
+            91%  { transform: scale(1.015) rotate(0.15deg); }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+
+        @keyframes popOut {
+            0%   { transform: scale(1) rotate(0deg);    opacity: 1; }
+            30%  { transform: scale(1.08) rotate(-2deg); opacity: 1; }
+            100% { transform: scale(0) rotate(6deg);     opacity: 0; }
+        }
+
+        /* ===== 底部按钮：分享 + 返回 ===== */
+        .back-wrap {
+            position: fixed;
+            left: 20px; right: 20px;
+            bottom: calc(20px + env(safe-area-inset-bottom));
+            max-width: 900px; margin: 0 auto;
+            z-index: 999;
+            display: grid;
+            grid-template-columns: 1fr 1.35fr;
+            gap: 12px;
+            opacity: 1;
+            transition: opacity 0.5s ease;
+        }
+        .back-wrap.hide-btn {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .back-wrap button {
+            width: 100%;
+            padding: 14px 8px;
+            border-radius: 10px;
+            font-size: 1rem;
+            touch-action: manipulation;
+            cursor: pointer;
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            transition: transform .2s ease, box-shadow .25s ease;
+        }
+        .back-wrap button:active { transform: scale(.97); }
+
+        /* 分享：暖金 */
+        .back-wrap .btn-share {
+            background: rgba(255, 214, 130, 0.22);
+            color: #fff3d6;
+            border: 1px solid rgba(255, 228, 168, 0.55);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.35),
+            0 4px 18px rgba(255,196,90,0.28);
+            text-shadow: 0 1px 2px rgba(90,55,0,0.5);
+        }
+
+        /* 返回：冰蓝 */
+        .back-wrap .btn-back {
+            background: rgba(170, 215, 255, 0.22);
+            color: #eaf6ff;
+            border: 1px solid rgba(200, 235, 255, 0.45);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.35),
+            0 4px 18px rgba(120,190,255,0.25);
+            text-shadow: 0 1px 2px rgba(0,40,80,0.45);
+        }
+
+        /* ===== 轻提示 toast ===== */
+        .toast {
+            position: fixed;
+            left: 50%; top: 50%;
+            transform: translate(-50%, -50%) scale(.92);
+            background: rgba(10, 22, 38, 0.88);
+            color: #eaf6ff;
+            padding: 14px 22px;
+            border-radius: 12px;
+            border: 1px solid rgba(180, 220, 255, 0.3);
+            font-size: 15px;
+            line-height: 1.6;
+            text-align: center;
+            max-width: 82vw;
+            word-break: break-all;
+            white-space: pre-line;
+            z-index: 10001;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .25s ease, transform .25s ease;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        @media (max-width: 480px) {
+            .xmas-popup { font-size: 0.78rem; padding: 8px 12px; border-radius: 8px; }
+            .back-wrap button { font-size: .92rem; padding: 12px 6px; }
+            .back-wrap { grid-template-columns: 1fr 1.3fr; gap: 10px; }
+        }
+
+        /* ===== 音频降级提示：全屏点击播放 ===== */
+        #playPrompt {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 24px;
+            background: rgba(0, 0, 0, 0.55);
+            -webkit-backdrop-filter: blur(2px);
+            backdrop-filter: blur(2px);
+            color: #fff;
+            font-size: 18px;
+            letter-spacing: 1px;
+            text-align: center;
+            z-index: 10000;
+            cursor: pointer;
+            touch-action: manipulation;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+            user-select: none;
+            -webkit-user-select: none;
+            animation: promptPulse 2s ease-in-out infinite;
+        }
+        @keyframes promptPulse {
+            0%, 100% { background-color: rgba(0, 0, 0, 0.55); }
+            50%      { background-color: rgba(0, 0, 0, 0.70); }
+        }
+    </style>
+</head>
+<body>
+<canvas id="snowCanvas"></canvas>
+
+<audio id="bgMusic" loop preload="auto"></audio>
+
+<div class="back-wrap" id="backWrap">
+    <button class="btn-share" id="btnShare">🔗 分享</button>
+    <button class="btn-back" id="btnBack">返回调整参数</button>
+</div>
+
+<script>
+    /* ============================================================
+       统一后退函数
+       ============================================================ */
+    function goBack(fallback) {
+        var fromSameSite = false;
+        if (document.referrer) {
+            try {
+                fromSameSite = new URL(document.referrer).origin === location.origin;
+            } catch (e) {
+                fromSameSite = document.referrer.indexOf(location.hostname) !== -1 && location.hostname !== '';
+            }
+        }
+        if (fromSameSite && history.length > 1) {
+            history.back();
+        } else {
+            location.href = fallback;
+        }
+    }
+
+    /* ============================================================
+       🔗 分享工具：把设置编码进 URL，任何人打开即还原相同效果
+       ============================================================ */
+    function encodeShareToken(obj) {
+        try {
+            const bytes = new TextEncoder().encode(JSON.stringify(obj));
+            let bin = '';
+            for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+            return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        } catch (e) {
+            return '';
+        }
+    }
+
+    function decodeShareToken(token) {
+        let s = String(token).replace(/-/g, '+').replace(/_/g, '/');
+        while (s.length % 4) s += '=';
+        const bin = atob(s);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return JSON.parse(new TextDecoder().decode(bytes));
+    }
+
+    function readSettingFromUrl() {
+        const raw = (location.hash || '').replace(/^#/, '');
+        if (!raw) return null;
+        try {
+            const token = new URLSearchParams(raw).get('s');
+            if (!token) return null;
+            const obj = decodeShareToken(token);
+            return (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : null;
+        } catch (e) {
+            console.warn('分享参数解析失败', e);
+            return null;
+        }
+    }
+
+    /* ============================================================
+       ❄️ 下雪背景（独立模块）
+       ============================================================ */
+    (function initSnow() {
+        const canvas = document.getElementById('snowCanvas');
+        const ctx = canvas.getContext('2d');
+        let flakes = [];
+        let rafId = null;
+
+        function resizeCanvas() {
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            canvas.width  = w * dpr;
+            canvas.height = h * dpr;
+            canvas.style.width  = w + 'px';
+            canvas.style.height = h + 'px';
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        function createFlakes() {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            const count = Math.max(60, Math.min(120, Math.floor(w / 6)));
+            flakes = [];
+            for (let i = 0; i < count; i++) {
+                flakes.push({
+                    x: Math.random() * w,
+                    y: Math.random() * h,
+                    r: Math.random() * 2 + 0.6,
+                    speed: Math.random() * 0.6 + 0.3,
+                    drift: (Math.random() - 0.5) * 0.3,
+                    sway: Math.random() * Math.PI * 2,
+                    swaySpeed: Math.random() * 0.01 + 0.005,
+                    opacity: Math.random() * 0.5 + 0.4
+                });
+            }
+        }
+
+        function draw() {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            ctx.clearRect(0, 0, w, h);
+
+            for (let i = 0; i < flakes.length; i++) {
+                const f = flakes[i];
+                ctx.beginPath();
+                ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255,255,255,' + f.opacity + ')';
+                ctx.fill();
+
+                f.y += f.speed;
+                f.x += Math.sin(f.sway) * 0.4 + f.drift;
+                f.sway += f.swaySpeed;
+
+                if (f.y > h + 5) { f.y = -5; f.x = Math.random() * w; }
+                if (f.x > w + 5) f.x = -5;
+                if (f.x < -5)     f.x = w + 5;
+            }
+            rafId = requestAnimationFrame(draw);
+        }
+
+        function handleResize() {
+            resizeCanvas();
+            createFlakes();
+        }
+
+        resizeCanvas();
+        createFlakes();
+        draw();
+
+        window.addEventListener('resize', handleResize);
+        window.addEventListener('beforeunload', () => {
+            if (rafId) cancelAnimationFrame(rafId);
+        });
+    })();
+
+    /* ============================================================
+       弹窗效果逻辑
+       ============================================================ */
+    /* 配置来源：URL 分享参数优先，其次 sessionStorage */
+    let setting = null;
+    const urlSetting = readSettingFromUrl();
+    if (urlSetting) {
+        setting = urlSetting;
+        try { sessionStorage.setItem('xmasSetting', JSON.stringify(urlSetting)); } catch (e) {}
+    } else {
+        try {
+            setting = JSON.parse(sessionStorage.getItem("xmasSetting") || "{}");
+        } catch (e) {
+            setting = {};
+        }
+    }
+
+    const speed     = Math.max(1, setting.speed || 300);
+    const liveTime  = Math.max(1, setting.live || 1200);
+    const interval  = Math.max(4, setting.interval || 250);
+    const MAX_POP   = Math.max(1, setting.maxPop || 35);
+    const musicFile = setting.music || "off";
+    const textColor = setting.color || "#ff2222";
+
+    /* 退场动画时长：入场时长的 60%，太短则兜底 120ms */
+    const outSpeed = Math.max(120, Math.round(speed * 0.6));
+
+    let userName    = (setting.name || "").trim();
+
+    // 只保留用户真正填写的自定义祝福语（空行过滤掉）
+    let customTextsArr = Array.isArray(setting.customTexts)
+        ? setting.customTexts.map(t => String(t).trim()).filter(Boolean)
+        : [];
+
+    const hasCustomText = customTextsArr.length > 0;
+
+    /* ============================================================
+       🎄 默认祝福语池：300 条
+       ============================================================ */
+    const defaultTextPool = [
+        "🎄圣诞快乐，岁岁平安","❄️愿冬日温暖，万事顺遂","🎅平安喜乐，得偿所愿","✨星光璀璨，好运相伴",
+        "🎁愿所有美好如期而至","🌟冬日吉祥，阖家安康","🔔铃儿响叮当，幸福满心房","☃️愿风雪温柔，岁岁无忧",
+        "🎄欢乐圣诞，日日皆欢喜","❄️暖意常伴，所愿皆成真","🎅岁岁年年，平安相伴","✨愿你眼里有光心中有暖",
+        "🎁圣诞欢愉，喜乐长安","🌟愿美好与幸运向你奔赴而来","🎄凛冬已至，圣诞安康","❄️雪花飘落，喜乐多多",
+        "🎅圣诞到来，福气自来","✨灯火闪闪，岁岁安澜","🎁冬日来信，好运降临","🌟平安夜晚，万事圆满",
+        "🔔圣诞钟声，敲响好运","☃️冬雪漫漫，喜乐相伴","🎄愿你冬日不寒，岁岁皆欢","❄️圣诞之夜，好梦相随",
+        "🎅祝福声声，幸福层层","✨烟火温柔，人间烂漫","🎁愿惊喜与温暖不期而遇","🌟圣诞欢愉，平安常驻",
+        "🔔悦耳钟声，岁岁安康","☃️白雪皑皑，好运来来","🎄愿日子滚烫，快乐闪亮","❄️冬日浪漫，圣诞相伴",
+        "🎅喜乐常在，幸福常在","✨星光落满肩头，好运常驻心头","🎁圣诞将至，美好将至","🌟愿生活温暖顺心，万事皆胜意",
+        "🔔聆听圣诞钟声，拥抱万般美好","☃️风雪虽寒，祝福很暖","🎄愿平安紧紧相随，快乐永不掉队","❄️漫天飞雪，满心喜悦",
+        "🎅圣诞的美好全部赠予你","✨灯火可亲，岁岁安宁","🎁愿所有期待，都开花结果","🌟平安喜乐，岁岁无忧愁",
+        "🔔铃音阵阵，好运阵阵","☃️冬意渐浓，祝福愈浓","🎄祝你圣诞愉快，万事皆可爱","❄️雪花片片，思念绵绵",
+        "🎅愿温暖环绕你的一年四季","✨圣诞之夜，喜乐无边","🎁愿惊喜撞进你的怀抱","🌟愿所得皆所期，所失亦无碍",
+        "🔔圣诞欢歌，快乐多多","☃️寒冬有暖，岁岁有盼","🎄愿平安把你守护，幸福把你眷顾","❄️冬日美好，如约报到",
+        "🎅圣诞老人，送你好运","✨世间万般好，尽数归予你","🎁圣诞愿你，笑口常开","🌟愿岁岁常欢愉，年年皆胜意",
+        "🔔钟声悠扬，福运绵长","☃️白雪纷飞，幸福相随","🎄凛冬送暖，圣诞送安","❄️愿风雪吹散所有烦恼忧愁",
+        "🎅欢乐圣诞，幸福无边","✨愿你三餐温暖，四季平安","🎁圣诞的星光为你点亮","🌟日子慢慢，喜乐漫漫",
+        "🔔听圣诞钟声，盼万事兴盛","☃️冬雪温柔，岁岁无忧","🎄愿好运像雪花一样纷纷落下","❄️圣诞良夜，喜乐昼夜",
+        "🎅愿生活处处有小惊喜","✨灯火摇曳，喜乐不绝","🎁祝你圣诞安康，诸事吉祥","🌟愿往后每一天都闪闪发光",
+        "🔔铃响圣诞，福满人间","☃️寒冬凛冽，祝福热烈","🎄愿平安常伴你的朝朝暮暮","❄️漫天雪花，遍地繁花",
+        "🎅圣诞佳节，喜乐交接","✨愿你被世间温柔紧紧拥抱","🎁美好圣诞，幸福相伴","🌟愿烦恼随风雪悄悄消散",
+        "🔔圣诞佳音，万事顺心","☃️雪落人间，喜乐满肩","🎄愿冬日暖阳温暖你的心房","❄️圣诞快乐，喜乐多多",
+        "🎅岁岁平安，事事圆满","✨愿好运时刻围绕在你身旁","🎁圣诞送福，日子富足","🌟愿你眼里星辰，心中春风",
+        "🔔欢乐铃响，喜乐登场","☃️冬意深深，祝福真真","🎄愿每一份期许都不被辜负","❄️雪落无声，祝福有情",
+        "🎅圣诞良辰，福运登门","✨人间朝暮，叶落冬暮，愿君安度","🎁圣诞欢愉，万事顺意","🌟愿岁岁年年，平安甜甜",
+        "🔔钟声响起，烦恼远离","☃️白雪飘落，快乐收获","🎄凛冬虽冷，祝福很暖","❄️圣诞之夜，好运不歇",
+        "🎅愿平安喜乐岁岁永不落幕","✨愿日子温暖抬头遇见都是柔情","🎁圣诞送喜，万事如意","🌟愿所有美好向你奔赴而来",
+        "🔔悦耳铃音，岁岁称心","☃️风雪漫漫，好运灿灿","🎄祝你圣诞愉快，岁岁安泰","❄️雪花漫舞，幸福永驻",
+        "🎅愿生活常有小确幸相伴","✨灯火万家，喜乐如花","🎁圣诞愿你，平安顺遂","🌟愿前路浩浩荡荡万事尽可期待",
+        "🔔圣诞欢唱，福运上涨","☃️寒冬有光，心中有糖","🎄愿平安如影随形，快乐生生不息","❄️冬雪如画，喜乐无涯",
+        "🎅圣诞佳节，幸福到家","✨愿你历经山河依旧温暖如初","🎁愿圣诞星光照亮你的前程","🌟岁岁常安乐，年年多喜乐",
+        "🔔钟声叮咚，好运叮咚","☃️漫天飞雪，满心欢悦","🎄愿凛冬散尽，星河长明","❄️圣诞送暖，岁岁平安",
+        "🎅愿所有不幸统统随风而去","✨愿你所得皆欢喜所遇皆善意","🎁圣诞吉祥，喜乐未央","🌟愿朝朝暮暮平安朝暮相伴",
+        "🔔铃儿声声，福气声声","☃️白雪皑皑，好运自来","🎄愿冬日的美好全部属于你","❄️圣诞良宵，喜乐逍遥",
+        "🎅祝你岁岁无忧年年有盼","✨人间冬色，愿你皆得喜乐","🎁圣诞的祝福飘向你的身旁","🌟愿生活多一点甜少一点难",
+        "🔔圣诞钟鸣，万事安宁","☃️风雪萧萧，祝福迢迢","🎄愿平安包裹你的岁岁年年","❄️雪花轻扬，喜乐飞扬",
+        "🎅欢乐圣诞，福气满满","✨愿你心中永远住着一份童真","🎁愿惊喜源源不断向你赶来","🌟愿每一个夜晚都平安好梦",
+        "🔔铃音飘扬，福运飞扬","☃️冬雪盈盈，喜乐盈盈","🎄祝你圣诞愉快万事皆可期","❄️凛冬寒风，祝福相融",
+        "🎅愿世间温柔都与你相逢","✨灯火闪闪，喜乐绵绵","🎁圣诞安康，好运久长","🌟愿前路光明，万事顺遂无忧",
+        "🔔圣诞佳音，喜乐千金","☃️雪落枝头，福到心头","🎄愿快乐如雪片一样不停降落","❄️圣诞之夜，喜乐不绝",
+        "🎅愿日子闪闪发光温暖明亮","✨愿烦恼清零，好运满盈","🎁圣诞送愿，岁岁如愿","🌟愿岁岁平安，时时皆欢颜",
+        "🔔钟声回荡，喜乐流淌","☃️寒冬漫漫，幸福灿灿","🎄愿平安伴你走过春夏秋冬","❄️漫天落雪，满心欢悦",
+        "🎅圣诞佳节，喜乐交加","✨愿所有努力都能开花结果","🎁愿圣诞的温暖治愈你的一切","🌟愿朝有暖阳，夜有安祥",
+        "🔔铃响福至，万事顺至","☃️白雪翩翩，好运绵绵","🎄祝你圣诞快乐岁岁皆安然","❄️冬风凛冽，祝福热烈",
+        "🎅愿你被好运紧紧包围环绕","✨人间冬晚，愿君多欢暖","🎁圣诞送喜，岁岁欢喜","🌟愿所得皆所愿所盼皆实现",
+        "🔔圣诞欢歌，喜乐多多","☃️风雪虽冷，祝福滚烫","🎄愿幸福常驻你的小小世界","❄️雪花飞舞，幸福鼓舞",
+        "🎅愿岁岁常欢愉年年多福气","✨愿抬头所见皆是美好风景","🎁愿圣诞带给你无限的惊喜","🌟愿平安常驻，快乐常驻",
+        "🔔钟声悠悠，福运悠悠","☃️冬雪纷飞，好运相随","🎄愿凛冬过去皆是春暖花开","❄️圣诞良夜，岁岁安夜",
+        "🎅祝你日日开心夜夜好眠","✨愿生活处处充满温柔光亮","🎁圣诞如意，万事顺意","🌟愿所有美好不期而遇相逢",
+        "🔔铃儿叮当，福运叮当","☃️白雪扬扬，喜乐洋洋","🎄愿好运陪伴你的朝朝暮暮","❄️冬日圣诞，喜乐漫漫",
+        "🎅愿你永远保持热爱与期待","✨愿世事温柔待你岁岁无忧","🎁愿圣诞星光温暖你的梦境","🌟愿日子安稳，岁岁有欢歌",
+        "🔔圣诞钟响，喜乐登场","☃️寒雪萧萧，福气迢迢","🎄愿平安喜乐伴随你的一生","❄️片片雪花，片片牵挂",
+        "🎅圣诞送福，万事享福","✨愿你眼里有星光心中有暖阳","🎁愿所有的愿望都得以成真","🌟愿岁岁无忧，事事皆通透",
+        "🔔铃音袅袅，好运袅袅","☃️冬雪漫漫，福运灿灿","🎄祝你圣诞安康，岁岁欢畅","❄️凛冬赠礼，圣诞赠喜",
+        "🎅愿世间所有好运向你靠拢","✨愿三餐四季温暖有趣无忧","🎁圣诞欢愉，岁岁欢愉","🌟愿前路漫漫亦灿灿皆可期",
+        "🔔钟声悦耳，万事悦目","☃️白雪轻落，喜乐收获","🎄愿风雪带走全部疲惫烦恼","❄️圣诞佳节，喜乐叠加",
+        "🎅愿你永远拥有孩童般快乐","✨愿人间烟火温暖你的日常","🎁愿圣诞的祝福岁岁陪伴你","🌟愿平安常伴，好运常伴",
+
+        "🎄圣诞钟声，岁岁吉祥","❄️愿雪花带去我的祝福","🎅红帽红靴，好运相随","✨星空为证，喜乐绵长",
+        "🎁礼物拆开，惊喜常在","🌟愿一切温柔都如期而至","🔔铃声清脆，幸福满溢","☃️雪人微笑，日子美妙",
+        "🎄愿圣诞温暖你每个清晨","❄️冬雪纷纷，祝福纷纷","🎅圣诞传说，伴你好梦","✨星河滚烫，喜乐无限",
+        "🎁愿你的圣诞充满惊喜","🌟愿岁月温柔，喜乐如初","🔔铃声悦耳，好运连连","☃️雪落纷纷，福气纷纷",
+        "🎄圣诞树下，许愿成真","❄️愿冬日美好与你相伴","🎅圣诞快乐，欢喜常在","✨灯火通明，福气满堂",
+        "🎁愿每个明天都比今天好","🌟愿平安夜里安然入梦","🔔铃声响亮，福气绵长","☃️雪花翩翩，祝福连连",
+        "🎄愿快乐伴你岁岁年年","❄️愿冬日有你，温暖如春","🎅圣诞老人，为你送福","✨星光点点，福气满满",
+        "🎁礼物多多，惊喜连连","🌟愿所有美好都如约而至","🔔圣诞铃音，幸福来临","☃️雪中送暖，圣诞送欢",
+        "🎄愿你的世界永远晴朗","❄️冬雪无声，祝福有声","🎅圣诞节日，喜气洋洋","✨愿星河灿烂，喜乐无边",
+        "🎁愿惊喜不断，好运连连","🌟愿岁月静好，现世安稳","🔔铃声响起，喜乐起舞","☃️雪花轻舞，喜乐满屋",
+        "🎄愿每一天都值得被纪念","❄️愿你眼里有光，脚下有路","🎅圣诞良辰，喜乐盈盈","✨愿你的生活如诗如画",
+        "🎁愿你的圣诞充满魔法","🌟愿光明与你永远同行","🔔铃音绕梁，喜乐满堂","☃️雪落无声，情意有声",
+        "🎄圣诞欢聚，幸福常驻","❄️愿你被世界温柔以待","🎅圣诞礼物，装满祝福","✨愿人间值得，未来可期",
+        "🎁愿你的圣诞温暖如春","🌟愿平安喜乐，岁岁年年","🔔圣诞钟响，幸福到访","☃️雪花飘落，心愿成真",
+        "🎄愿生活温柔，日子欢喜","❄️愿你心之所向，皆是光明","🎅圣诞夜暖，好梦相随","✨愿漫天星光，为你闪耀",
+        "🎁愿欢歌笑语，伴你同行","🌟愿你的圣诞，温暖而美好","🔔铃儿响叮当，圣诞快乐","☃️冬日暖阳，温柔而长",
+        "🎄愿幸福像雪花一样纷飞","❄️愿冬日可爱，岁岁无忧","🎅圣诞欢颂，平安喜乐","✨愿你的世界，灯火辉煌",
+        "🎁愿圣诞之光，照亮你前程","🌟愿岁岁平安，人人幸福","🔔圣诞钟声响，万家乐团圆","☃️祝你的圣诞，永远温暖明亮"
+    ];
+
+    // 自定义了几条就用几条（不混入默认随机库）；完全没自定义才用默认池
+    let textList = hasCustomText ? customTextsArr.slice() : defaultTextPool.slice();
+    if (textList.length === 0) textList = ["圣诞快乐"];
+
+    /* ============================================================
+       🎲 随机表情装饰
+       ============================================================ */
+    const EMOJI_POOL = ["🎄","❄️","🎅","🎁","🔔","☃️","⛄","✨","🌟","🦌","🕯️","🍬","🧦","🛷","🎀"];
+    function startsWithEmoji(str) {
+        if (!str) return false;
+        const cp = str.codePointAt(0);
+        return (
+            (cp >= 0x1F000 && cp <= 0x1FAFF) ||
+            (cp >= 0x2600  && cp <= 0x27BF)  ||
+            (cp >= 0x2B00  && cp <= 0x2BFF)  ||
+            (cp >= 0xFE00  && cp <= 0xFE0F)  ||
+            (cp >= 0x1F1E6 && cp <= 0x1F1FF)
+        );
+    }
+    function randomEmoji() {
+        return EMOJI_POOL[Math.floor(Math.random() * EMOJI_POOL.length)];
+    }
+
+    function decorate(raw) {
+        let body = raw;
+        if (hasCustomText && !startsWithEmoji(body)) {
+            body = randomEmoji() + " " + body;
+        }
+        if (userName) {
+            body = randomEmoji() + userName + "，" + body;
+        }
+        return body;
+    }
+
+    const bgMusic = document.getElementById('bgMusic');
+    let timerId = null;
+    let isLeaving = false;
+    const pool = [];
+    let activeNodes = [];
+
+    // ===== 返回 / 分享按钮：自动隐藏、点击再出现 =====
+    const backWrap = document.getElementById('backWrap');
+    const btnBack  = document.getElementById('btnBack');
+    const btnShare = document.getElementById('btnShare');
+    let backHideTimer = null;
+    let backPeTimer = null;                 // ★ 新增
+    let backBtnLockUntil = 0;
+    const BACK_HIDE_DELAY = 3000;
+    const BACK_WAKE_LOCK  = 500;            // ★ 450 → 500
+
+    // ★ 是否从分享链接进入：URL 带 #s= 参数
+    const isFromShare = !!urlSetting;
+
+    function scheduleBackHide() {
+        clearTimeout(backHideTimer);
+        const wasHidden = backWrap.classList.contains('hide-btn');   // ★
+        if (wasHidden) {
+            backBtnLockUntil = performance.now() + BACK_WAKE_LOCK;
+            // ★ 关键：按钮从隐藏变可见时短暂禁用 pointer-events，防止 click 穿透
+            backWrap.style.pointerEvents = 'none';
+            clearTimeout(backPeTimer);
+            backPeTimer = setTimeout(() => {
+                backWrap.style.pointerEvents = '';
+            }, 300);
+        }
+        backWrap.classList.remove('hide-btn');
+        backHideTimer = setTimeout(() => {
+            backWrap.classList.add('hide-btn');
+        }, BACK_HIDE_DELAY);
+    }
+
+    scheduleBackHide();
+
+    /* ============================================================
+       🔗 分享：一键生成可直接打开的链接
+       ============================================================ */
+    let toastTimer = null;
+    function showToast(msg, duration) {
+        let el = document.getElementById('shareToast');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'shareToast';
+            el.className = 'toast';
+            document.body.appendChild(el);
+        }
+        el.textContent = msg;
+        void el.offsetWidth;
+        el.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove('show'), duration || 2400);
+    }
+
+    function buildShareLink() {
+        const base = location.href.split('#')[0];
+        const token = encodeShareToken(setting);
+        return base + '#s=' + token;
+    }
+
+    function fallbackCopy(text, okMsg) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.top = '-9999px';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        ta.setSelectionRange(0, text.length);
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+        if (ok) showToast(okMsg, 2600);
+        else window.prompt('请长按全选并复制下面的链接：', text);
+    }
+
+    function copyText(text, okMsg) {
+        const msg = okMsg || '✅ 分享链接已复制\n发给朋友即可打开';
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text)
+                .then(() => showToast(msg, 2600))
+                .catch(() => fallbackCopy(text, msg));
+        } else {
+            fallbackCopy(text, msg);
+        }
+    }
+
+    btnShare.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (performance.now() < backBtnLockUntil) {     // ★ 防穿透
+            e.preventDefault();
+            return;
+        }
+        if (isFromShare) {                              // ★ 分享链接进来不允许再分享
+            showToast('分享链接不支持分享');
+            return;
+        }
+        const link = buildShareLink();
+        const tooLong = link.length >= 1800;
+
+        if (navigator.share && !tooLong) {
+            try {
+                await navigator.share({
+                    title: '🎄 送你一份圣诞祝福',
+                    text: '点开看看这份圣诞祝福吧～',
+                    url: link
+                });
+                return;
+            } catch (err) {
+                if (err && err.name === 'AbortError') return;
+            }
+        }
+
+        if (tooLong) {
+            copyText(link, '⚠️ 内容较多，链接较长\n已复制，若发送失败可减少自定义祝福语');
+        } else {
+            copyText(link);
+        }
+    });
+    btnShare.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
+
+    function tryResumeMusic() {
+        if (musicFile === "off" || !bgMusic.paused) return;
+        bgMusic.play().then(() => {
+            const p = document.getElementById('playPrompt');
+            if (p) p.remove();
+        }).catch(() => {});
+    }
+
+    document.body.addEventListener('click', (e) => {
+        if (e.target === btnBack || btnBack.contains(e.target)) return;
+        if (e.target === btnShare || btnShare.contains(e.target)) return;
+        scheduleBackHide();
+        tryResumeMusic();
+    });
+
+    document.body.addEventListener('touchstart', (e) => {
+        if (e.target === btnBack || btnBack.contains(e.target)) return;
+        if (e.target === btnShare || btnShare.contains(e.target)) return;
+        scheduleBackHide();
+    }, { passive: true });
+
+    document.body.addEventListener('touchend', tryResumeMusic, { passive: true });
+
+    // ===== 弹窗池 =====
+    function getPopupEl() {
+        if (pool.length > 0) {
+            const el = pool.pop();
+            el.classList.remove('pop-in', 'pop-out');
+            return el;
+        }
+        const el = document.createElement('div');
+        el.className = "xmas-popup";
+        return el;
+    }
+
+    function recycle(el) {
+        if (isLeaving) return;
+        el.classList.remove('pop-in', 'pop-out');
+        el.innerText = "";
+        if (el.parentNode) el.remove();
+        pool.push(el);
+    }
+
+    /* ============================================================
+       🎵 背景音乐：自动播放 + 失败降级
+       ============================================================ */
+    function showPlayPrompt() {
+        if (document.getElementById('playPrompt')) return;
+        const prompt = document.createElement('div');
+        prompt.id = 'playPrompt';
+        prompt.innerText = '🎵 点击任意地方播放音乐';
+        document.body.appendChild(prompt);
+
+        let handled = false;
+        function startPlay(e) {
+            if (handled) return;
+            handled = true;
+            if (e && e.type === 'touchend' && e.cancelable) e.preventDefault();
+            bgMusic.play().then(() => {
+                console.log('✅ 点击后播放成功');
+            }).catch(err => console.warn('⚠️ 点击后依然无法播放:', err));
+            prompt.remove();
+        }
+        prompt.addEventListener('touchend', startPlay, { passive: false });
+        prompt.addEventListener('click', startPlay);
+    }
+
+    function tryPlayMusic() {
+        bgMusic.play().then(() => {
+            console.log('✅ 背景音乐自动播放成功');
+            const p = document.getElementById('playPrompt');
+            if (p) p.remove();
+        }).catch((err) => {
+            console.warn('⚠️ 自动播放被浏览器阻止:', err);
+            showPlayPrompt();
+        });
+    }
+
+    if (musicFile !== "off") {
+        bgMusic.src = `static/${musicFile}`;
+        tryPlayMusic();
+        window.addEventListener('load', tryPlayMusic, { once: true });
+    }
+
+    // ===== 弹窗生成 =====
+    function createPopup() {
+        if (isLeaving || document.hidden) return;
+        if (activeNodes.length >= MAX_POP) return;
+
+        const el = getPopupEl();
+        const randText = textList[Math.floor(Math.random() * textList.length)];
+        el.innerText = decorate(randText);
+        el.style.color = textColor;
+
+        el.style.left = "-9999px";
+        el.style.top  = "-9999px";
+        document.body.appendChild(el);
+
+        const popW = el.offsetWidth;
+        const popH = el.offsetHeight;
+
+        const screenW = window.innerWidth;
+        const screenH = window.innerHeight;
+
+        const overhang = popW * 0.5;
+        const minX = -overhang;
+        const maxX = screenW - popW + overhang;
+
+        const minY = -popH * 0.3;
+        const maxY = screenH - popH * 0.7;
+
+        const x = minX + Math.random() * (maxX - minX);
+        const y = minY + Math.random() * (maxY - minY);
+
+        el.style.left = x + "px";
+        el.style.top  = y + "px";
+
+        el.style.setProperty('--pop-speed', speed + 'ms');
+        el.style.setProperty('--pop-out-speed', outSpeed + 'ms');
+
+        el.classList.remove('pop-in', 'pop-out');
+        void el.offsetWidth;
+        el.classList.add('pop-in');
+
+        activeNodes.push(el);
+
+        setTimeout(() => {
+            if (isLeaving) return;
+            el.classList.remove('pop-in');
+            el.classList.add('pop-out');
+            setTimeout(() => {
+                if (isLeaving) return;
+                const idx = activeNodes.indexOf(el);
+                if (idx > -1) activeNodes.splice(idx, 1);
+                recycle(el);
+            }, outSpeed);
+        }, liveTime);
+    }
+
+    timerId = setInterval(createPopup, interval);
+
+    // ===== 返回按钮点击（带防误触判断）=====
+    btnBack.addEventListener('click', (e) => {
+        if (performance.now() < backBtnLockUntil) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+        if (isFromShare) {                              // ★ 分享链接进来不允许改参数
+            showToast('分享链接不支持更改参数');
+            return;
+        }
+        isLeaving = true;
+        clearInterval(timerId);
+        clearTimeout(backHideTimer);
+        clearTimeout(backPeTimer);                      // ★
+        bgMusic.pause();
+        goBack('page4.html');
+    });
+
+    window.addEventListener('beforeunload', () => {
+        isLeaving = true;
+        clearInterval(timerId);
+        clearTimeout(backHideTimer);
+        clearTimeout(backPeTimer);                      // ★
+        bgMusic.pause();
+    });
+
+    /* ============================================================
+       从 bfcache 恢复时（浏览器后退回本页），重置状态
+       ============================================================ */
+    window.addEventListener('pageshow', (e) => {
+        if (!e.persisted) return;
+        isLeaving = false;
+        for (let i = activeNodes.length - 1; i >= 0; i--) {
+            if (activeNodes[i].parentNode) activeNodes[i].remove();
+        }
+        activeNodes.length = 0;
+        pool.length = 0;
+        if (musicFile !== "off" && bgMusic.paused) {
+            bgMusic.play().catch(() => {});
+        }
+        scheduleBackHide();
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+<head>
+    <meta charset="UTF-8">
+    <title>圣诞节｜调整参数</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft Yahei", sans-serif;
+        }
+        body {
+            min-height: 100vh;
+            background:#fff;
+            padding:40px 20px calc(260px + env(safe-area-inset-bottom));
+            text-align:center;
+        }
+        h1{
+            font-size: clamp(1.6rem,5vw,2.4rem);
+            margin-bottom:30px;
+        }
+        .container{
+            max-width:600px;
+            margin:0 auto 40px;
+            text-align:left;
+        }
+        .item{
+            margin-bottom:26px;
+        }
+        .item label{
+            display:block;
+            font-size:1rem;
+            margin-bottom:8px;
+            color:#222;
+        }
+        input[type="range"]{
+            width:100%;
+        }
+        .tip{
+            font-size:0.9rem;
+            color:#666;
+            margin-top:4px;
+        }
+        .warn-tip{
+            font-size:0.85rem;
+            color:#d92d20;
+            margin-top:6px;
+        }
+        select,input[type="color"],input[type="text"]{
+            width:100%;
+            padding:10px;
+            font-size:1rem;
+            border:1px solid #ccc;
+            border-radius:6px;
+        }
+        .text-item{
+            display:flex;
+            gap:8px;
+            margin-bottom:10px;
+            align-items:center;
+        }
+        .text-item input{
+            flex:1;
+        }
+        .text-item button{
+            padding:8px 10px;
+            border:none;
+            border-radius:4px;
+            background:#ef4444;
+            color:white;
+        }
+        .add-btn{
+            padding:9px 14px;
+            border:none;
+            border-radius:6px;
+            background:#22c55e;
+            color:#fff;
+            margin:8px 0 16px;
+        }
+        .btn-group{
+            position:fixed;
+            left:20px;
+            right:20px;
+            bottom:calc(20px + env(safe-area-inset-bottom));
+            max-width:900px;
+            margin:0 auto;
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:14px;
+        }
+        .btn-group button{
+            padding:16px;
+            border:none;
+            border-radius:8px;
+            font-size:1.05rem;
+            touch-action:manipulation;
+            cursor:pointer;
+        }
+        .btn-back{
+            background:#64748b;
+            color:#fff;
+        }
+        .btn-go{
+            background:#3b82f6;
+            color:#fff;
+        }
+        @media (max-width:400px){
+            .btn-group button{
+                padding:14px;
+                font-size:1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+<h1>圣诞节｜调整参数</h1>
+<div class="container">
+    <div class="item">
+        <label>名称：</label>
+        <input type="text" id="username" placeholder="例如：小明" value="">
+        <div class="tip">填写则生成：【小明，圣诞快乐】；留空不生成该前缀</div>
+    </div>
+
+    <div class="item">
+        <label>自定义祝福语（最少5条，填写后替换全部默认祝福语）</label>
+        <div id="textWrap">
+            <!--js自动生成5条初始输入框-->
+        </div>
+        <button class="add-btn" id="addTextBtn">➕增加祝福语</button>
+        <div class="tip">全部留空则使用程序内置默认祝福语</div>
+    </div>
+
+    <div class="item">
+        <label>弹出速度(动画时长ms)：<span id="speedVal">300</span>ms</label>
+        <input type="range" id="speed" min="1" max="2000" value="300" step="1">
+        <div class="tip">弹窗放大缩小动画耗时</div>
+        <div class="warn-tip">⚠️温馨提示：建议300ms</div>
+    </div>
+
+    <div class="item">
+        <label>弹窗存在时间(ms)：<span id="liveVal">1200</span>ms</label>
+        <input type="range" id="liveTime" min="200" max="4000" value="1200" step="100">
+        <div class="tip">弹窗在屏幕停留多久后消失</div>
+        <div class="warn-tip">⚠️温馨提示：建议1200ms</div>
+    </div>
+
+    <div class="item">
+        <label>弹出频率(生成间隔ms)：<span id="intervalVal">250</span>ms</label>
+        <input type="range" id="interval" min="1" max="750" value="250" step="1">
+        <div class="tip">多久生成一条新弹窗</div>
+        <div class="warn-tip">⚠️温馨提示：浏览器定时器底层最小约4ms，设置1ms实际也只能跑到4ms</div>
+    </div>
+
+    <div class="item">
+        <label>屏幕最大同时弹窗数量：<span id="maxPopVal">35</span></label>
+        <input type="range" id="maxPop" min="6" max="300" value="35" step="1">
+        <div class="warn-tip">⚠️最大值300，数字越大画面越热闹</div>
+    </div>
+
+    <div class="item">
+        <label>背景音乐</label>
+        <select id="music">
+            <option value="off">关闭音乐</option>
+            <option value="1-1.mp3">Cry For Me</option>
+            <option value="1-2.mp3">Every Summertime</option>
+            <option value="1-3.mp3">JINGLE BELLS</option>
+            <option value="1-4.mp3">Christmas</option>
+            <option value="1-5.mp3">圣诞节之歌(冰冰冰)</option>
+        </select>
+        <div class="tip">下拉选项</div>
+    </div>
+
+    <div class="item">
+        <label>文字颜色</label>
+        <input type="color" id="color" value="#ff2222">
+    </div>
+</div>
+
+<div class="btn-group">
+    <button class="btn-back" onclick="goBack('page2.html')">返回选项</button>
+    <button class="btn-go" id="goEffect">查看效果</button>
+</div>
+
+<script>
+    /* ============================================================
+       统一后退函数
+       ============================================================ */
+    function goBack(fallback) {
+        var fromSameSite = false;
+        if (document.referrer) {
+            try {
+                fromSameSite = new URL(document.referrer).origin === location.origin;
+            } catch (e) {
+                fromSameSite = document.referrer.indexOf(location.hostname) !== -1 && location.hostname !== '';
+            }
+        }
+        var fromEffectPage = false;
+        if (fromSameSite) {
+            try {
+                var refPath = new URL(document.referrer).pathname;
+                fromEffectPage = /page6\.html$|page7\.html$/.test(refPath);
+            } catch (e) {}
+        }
+        if (fromSameSite && !fromEffectPage && history.length > 1) {
+            history.back();
+        } else {
+            location.href = fallback;
+        }
+    }
+
+    const speedInput = document.querySelector('#speed');
+    const liveInput = document.querySelector('#liveTime');
+    const intervalInput = document.querySelector('#interval');
+    const speedVal = document.querySelector('#speedVal');
+    const liveVal = document.querySelector('#liveVal');
+    const intervalVal = document.querySelector('#intervalVal');
+    const maxPopInput = document.querySelector('#maxPop');
+    const maxPopVal = document.querySelector('#maxPopVal');
+    const musicSel = document.querySelector('#music');
+    const colorInput = document.querySelector('#color');
+    const userNameInput = document.querySelector('#username');
+    const goBtn = document.querySelector('#goEffect');
+    const addTextBtn = document.querySelector('#addTextBtn');
+    const textWrap = document.querySelector('#textWrap');
+    const MIN_COUNT = 5;
+
+    function createTextRow(defVal=""){
+        const div = document.createElement('div');
+        div.className="text-item";
+        div.innerHTML = `
+            <input type="text" class="custom-text" placeholder="输入一条圣诞祝福语" value="${defVal}">
+            <button class="del-row">删除</button>
+        `;
+        div.querySelector('.del-row').addEventListener('click',()=>{
+            const rows = textWrap.querySelectorAll('.text-item');
+            if(rows.length <= MIN_COUNT){
+                alert(`最少保留${MIN_COUNT}条祝福语，不能再删`);
+                return;
+            }
+            div.remove();
+        });
+        textWrap.appendChild(div);
+    }
+
+    for(let i=0;i<MIN_COUNT;i++){
+        createTextRow();
+    }
+    addTextBtn.addEventListener('click',()=>createTextRow());
+
+    speedInput.addEventListener('input', ()=> speedVal.textContent = speedInput.value);
+    liveInput.addEventListener('input', ()=> liveVal.textContent = liveInput.value);
+    intervalInput.addEventListener('input', ()=> intervalVal.textContent = intervalInput.value);
+    maxPopInput.addEventListener('input', ()=> maxPopVal.textContent = maxPopInput.value);
+
+    // =====【修复：页面载入读取缓存，回填滑块UI】=====
+    function loadSetting(){
+        const raw = sessionStorage.getItem("xmasSetting");
+        if(!raw) return;
+        try{
+            const s = JSON.parse(raw);
+            speedInput.value = s.speed ?? 300;
+            liveInput.value = s.live ?? 1200;
+            intervalInput.value = s.interval ?? 250;
+            maxPopInput.value = s.maxPop ?? 35;
+            musicSel.value = s.music ?? "off";
+            colorInput.value = s.color ?? "#ff2222";
+            userNameInput.value = s.name ?? "";
+
+            speedVal.textContent = speedInput.value;
+            liveVal.textContent = liveInput.value;
+            intervalVal.textContent = intervalInput.value;
+            maxPopVal.textContent = maxPopInput.value;
+
+            //回填自定义祝福语
+            const arr = Array.isArray(s.customTexts) ? s.customTexts : [];
+            const rows = textWrap.querySelectorAll('.text-item');
+            rows.forEach(r=>r.remove());
+            if(arr.length > 0){
+                arr.forEach(txt=>createTextRow(txt));
+            }else{
+                for(let i=0;i<MIN_COUNT;i++) createTextRow();
+            }
+        }catch(e){}
+    }
+    loadSetting();
+
+    goBtn.addEventListener('click',()=>{
+        const spd = Number(speedInput.value);
+        const live = Number(liveInput.value);
+        const intv = Number(intervalInput.value);
+        const maxPop = Number(maxPopInput.value);
+        const mus = musicSel.value;
+        const col = colorInput.value;
+        const name = userNameInput.value.trim();
+
+        const inputs = textWrap.querySelectorAll('.custom-text');
+        const customTextsArr = [];
+        inputs.forEach(inp=>{
+            const v = inp.value.trim();
+            if(v) customTextsArr.push(v);
+        });
+
+        sessionStorage.setItem("xmasSetting", JSON.stringify({
+            speed:spd,
+            live:live,
+            interval:intv,
+            maxPop:maxPop,
+            music:mus,
+            color:col,
+            name:name,
+            customTexts:customTextsArr
+        }));
+        location.href = "page6.html";
+    });
+</script>
+</body>
+</html>
